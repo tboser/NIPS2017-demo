@@ -7,6 +7,7 @@ struct Layer {
   std::vector<int8_t> weights;
   size_t bias_shape;
   std::vector<int8_t> biases;
+  Layer(const std::string& name, const std::string& wshape, const std::string 
 };
 
 typedef std::vector<Layer> Layers_t;
@@ -18,6 +19,11 @@ void readLayersFlatFile(const std::string& path, Layers_t layers) {
     if (!file) {
         std::cout << "Error opening file at " << path << std::endl;
         return {};
+    }
+
+    while (file.good()) {
+      std::string name, wshape
+      Layer l
     }
 
 }
