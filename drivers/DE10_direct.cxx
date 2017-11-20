@@ -1,11 +1,20 @@
 #include <iostream>
 #include <vector>
 #include "mnist/mnist_reader.hpp"
-#define MNIST_DATA_LOCATION "/home/calaf/heptrkx/AI-HEP.Trk/nips_demo/drivers/mnist"
+#include "layers/TrainedLayers.hpp"
+#define MNIST_DATA_LOCATION "/home/calaf/NIPS2017-demo/mnist"
+#define KERAS_PARMS "/home/calaf/NIPS2017-demo/flat_weights.txt"
 
 using namespace std;
 typedef std::vector<uint8_t> Image_t;
 typedef std::vector<uint8_t> Results_t;
+
+void sendMatricesFPGA(const std::string& path) {
+  cout << "sendMatricesFPGA" <<endl;
+  Layers_t layers;
+  readLayersFlatFile(path, layers);
+  cout << layers[0].nBiases <<endl;
+}
 
 void startForwardPass(const std::vector<Image_t> /*imgBatch*/) {
   cout << "startForwardPass" << endl;
@@ -29,7 +38,10 @@ void processResults(const Results_t& /*res*/) {
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
 
-  // MNIST_DATA_LOCATION set by MNIST cmake config
+  //Read keras parms, prepare matrices
+  sendMatricesFPGA(KERAS_PARMS);
+
+  // MNIST_DATA_LOCATION set by Makefile
   std::cout << "MNIST data directory: " << MNIST_DATA_LOCATION << std::endl;
   
   // Load MNIST data
@@ -43,15 +55,14 @@ int main(int argc, char* argv[]) {
 
   unsigned int nTestImgs(dataset.test_images.size());
   /// one prediction per img
-  //Read keras parms, prepare matrices
-  //Send_matrices_FPGA(...)
 
   //Loop over mnist images stride X
   Results_t mnistPred;
   //mnistPred.reserve(nTestImgs);
-  int i(0);
+  unsigned int i(0);
   const int STRIDE(10);
-  while (i<nTestImgs) {
+  //FIXME!!!!!!!!!!!!!!!  while (i<nTestImgs) {
+  while (i<100) {
     std::vector<Image_t> imgBatch;
     imgBatch.reserve(STRIDE);
     for (int j=0; j<STRIDE; ++j) imgBatch.push_back(dataset.test_images[i++]);
