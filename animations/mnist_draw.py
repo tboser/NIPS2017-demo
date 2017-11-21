@@ -9,7 +9,7 @@ from keras.datasets import mnist
 (nx,ny)=(10,10)
 colors=['Greens', 'Reds']
 results= np.random.randint(2, size=len(y_test))
-
+#plt.ion()
 (f,ax) = plt.subplots(nx,ny)
 plt.subplots_adjust(bottom=0.2)
 
@@ -38,14 +38,20 @@ class Index(object):
     def start(self, event):
         #simulate the reading of results from board
         from random import randint
-        istart = self.ind
-        self.ind += randint(0,1000)
-        istop = self.ind
-        ids = [i for i in range(istart, istop) if (i%100 == 0)]
-        if (istop < len(y_test)):
-            color_digits(ids)
-        else:
-            print "done. Please restart"
+        istop=0
+        while True:
+            istart = self.ind
+            self.ind += randint(0,1000)
+            istop = self.ind
+            print istart, istop
+            ids = [i for i in range(istart, istop) if (i%100 == 0)]
+            if (istop < len(y_test)):
+                color_digits(ids)
+                f.canvas.draw()
+                f.canvas.flush_events()
+            else:
+                print "done. Please restart"
+                break
     def restart(self, event):
         self.ind=0
         plot_digits()
@@ -62,7 +68,7 @@ def color_digits(ids):
 callback = Index()
 axstop = plt.axes([0.7, 0.05, 0.1, 0.075])
 axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
-bstart = Button(axstart, 'Update')
+bstart = Button(axstart, 'Start')
 bstart.on_clicked(callback.start)
 bstop = Button(axstop, 'Restart')
 bstop.on_clicked(callback.restart)
