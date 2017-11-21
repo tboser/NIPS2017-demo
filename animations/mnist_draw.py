@@ -4,7 +4,6 @@ import time
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import thread
 
 from matplotlib.widgets import Button
 from keras.datasets import mnist
@@ -40,25 +39,26 @@ def plot_mnist_digit(splt, pixels, col='gray'):
 
 
 
+f = plt.figure(figsize=(8, 8))
 #"Mother Grid spec with enough room for two mnist chars display side by side, plus 1 row below for summary plots
 gsMother = gridspec.GridSpec(3, 1)
 #one row with two columns for chars displays
 gsChars = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[0])
 # the two nx*ny grids for the char displays
 gsFPGA = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[0])
+#add character displays
+axsFPGA = fillCharGrid(f, gsFPGA)
 gsGPU = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[1])
-#one row for three summary plots
-gsSumm = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gsMother[1])
+axsGPU = fillCharGrid(f, gsGPU)
+#one row for summary plots
+gsSumm = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[1])
+axAcc = plt.Subplot(f,gsSumm[0])
+f.add_subplot(axAcc)
 #one row for the two buttons
 gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
 #
 
-f = plt.figure(figsize=(8, 8))
 
-#add character displays
-axsFPGA = fillCharGrid(f, gsFPGA)
-#pprint(axsFPGA)
-axsGPU = fillCharGrid(f, gsGPU)
 
 
 
@@ -69,45 +69,62 @@ class Index(object):
     indFPGA = 0
     indGPU = 0
 
-    def update(self, axs, ind, results):
+    def updateChars(self, axs, ind, results, nImages):
         #simulate the reading of results from board
         from random import randint
         istop=0
-        while True:
-            istart = ind
-            ind += randint(0,1000)
-            istop = ind
-            ids = [i for i in range(istart, istop) if (i%100 == 0)]
-            if (istop < len(y_test)):
-                color_digits(axs, ids, results)
-                self.refresh(f)
-            else:
-                print "done. Please restart"
-                break
-        return ind;
-    def refresh(self,fig):
-        fig.canvas.draw()
-        fig.canvas.flush_events()
-        
+        istart = ind
+        ind += randint(0,1000)
+        istop = ind
+        ids = [i for i in range(istart, istop) if (i%100 == 0)]
+        if (istop < nImages):
+            color_digits(axs, ids, results)
+        return istop;
+    
+            
     def start(self, event):
-        self.indFPGA=thread.start_new_thread(self.update, (axsFPGA, self.indFPGA, resultsFPGA))
-        self.indFPGA=thread.start_new_thread(self.update, (axsGPU, self.indGPU, resultsGPU))
-        #        thread.start_new_thread(self.refresh, (f))
-        
+        nImages=len(y_test)
+        while (self.indFPGA < nImages or self.indGPU < nImages):
+            accFPGA = float(np.count_nonzero(resultsFPGA))/len(resultsFPGA)
+            accGPU = float(np.count_nonzero(resultsGPU))/len(resultsGPU)
+            print "accFPGA= ", accFPGA, " accGPU= ", accGPU
+            ind=np.arange(2)
+            acc= np.array([accFPGA, accGPU])
+            axAcc.bar(ind, acc, color="Green")
+            axAcc.bar(ind, np.array([1,1])-acc, bottom=acc, color="Red")
+            plt.sca(axAcc)
+            plt.xticks(ind, ['FPGA', 'GPU'])
+            plt.draw()
+            self.indFPGA=self.updateChars(axsFPGA, self.indFPGA, resultsFPGA, nImages)
+            self.indGPU=self.updateChars(axsGPU, self.indGPU, resultsGPU, nImages)
+            
+        print "done. Please restart"            
+        from threading import Thread
+
     def restart(self, event):
         self.indFPGA=0
         self.indGPU=0
         plot_digits(axsFPGA)
         plot_digits(axsGPU)
     
+def refreshPlot(fig):
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+
 def plot_digits(axs):
     for i in range(0,len(y_test),len(y_test)/nx/ny):        
         plot_mnist(axs[i/nx/ny], y_test[i], x_test[i])
-        plt.draw()    
+    plt.draw()    
+
 def color_digits(axs, ids, results):
+#    mutex.acquire()
+#    try:
     for i in ids:
         color_mnist(axs[i/nx/ny], results[i], x_test[i])
-        plt.draw()    
+    plt.draw()    
+    refreshPlot(f)
+#    finally:
+#        mutex.release()
 
 
 #axstop = plt.Subplot(f, gsButtons[0])
