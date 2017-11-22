@@ -54,8 +54,10 @@ axsGPU = fillCharGrid(f, gsGPU)
 #one row for summary plots
 gsSumm = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[1])
 axAcc = plt.Subplot(f,gsSumm[0])
+axAcc.set_xlabel("Fraction")
 f.add_subplot(axAcc)
 axExe = plt.Subplot(f,gsSumm[1])
+axExe.set_xlabel("Secs/100 digits")
 f.add_subplot(axExe)
 #one row for the two buttons
 #gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
@@ -108,8 +110,9 @@ class Index(object):
         plt.sca(ax)
         ind=np.arange(2)
         plt.yticks(ind, ['FPGA', 'GPU'])
-        spatch = mpatches.Patch(color='Green', label='Success')
-        ax.legend(handles=[spatch])
+        gpatch = mpatches.Patch(color='Green', label='Right')
+        rpatch = mpatches.Patch(color='Red', label='Wrong')
+        ax.legend(handles=[gpatch,rpatch])
         if (self.indFPGA * self.indGPU):
             accFPGA = float(np.count_nonzero(resultsFPGA[:self.indFPGA]))/self.indFPGA
             accGPU = float(np.count_nonzero(resultsGPU[:self.indGPU]))/self.indGPU
