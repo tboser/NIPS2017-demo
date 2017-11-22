@@ -88,6 +88,10 @@ class Index(object):
         return istop;
     
     def updateExe(self, ax):
+        ax.title.set_text("Execution Time")
+        fpatch = mpatches.Patch(color='blue', label='FPGA')
+        gpatch = mpatches.Patch(color='yellow', label='GPU')
+        ax.legend(handles=[fpatch,gpatch])
         if (self.indFPGA * self.indGPU):
             #just making something up for exec time/digit
             print self.indFPGA - self.exeFPGA[-1]
@@ -97,24 +101,22 @@ class Index(object):
             bins = np.linspace(0.,0.6, 30)
             ax.hist(self.exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
             ax.hist(self.exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
-            fpatch = mpatches.Patch(color='blue', label='FPGA')
-            gpatch = mpatches.Patch(color='yellow', label='GPU')
-            ax.legend(handles=[fpatch,gpatch])
             plt.draw()
 
     def updateAcc(self, ax):
+        ax.title.set_text("Classification Accuracy")
+        plt.sca(ax)
+        ind=np.arange(2)
+        plt.yticks(ind, ['FPGA', 'GPU'])
+        spatch = mpatches.Patch(color='Green', label='Success')
+        ax.legend(handles=[spatch])
         if (self.indFPGA * self.indGPU):
             accFPGA = float(np.count_nonzero(resultsFPGA[:self.indFPGA]))/self.indFPGA
             accGPU = float(np.count_nonzero(resultsGPU[:self.indGPU]))/self.indGPU
             print "accFPGA= ", accFPGA, " accGPU= ", accGPU
-            ind=np.arange(2)
             acc= np.array([accFPGA, accGPU])
             ax.barh(ind, acc, color="Green", label="Correct")
             ax.barh(ind, np.array([1,1])-acc, left=acc, color="Red")
-            spatch = mpatches.Patch(color='Green', label='Success')
-            ax.legend(handles=[spatch])
-            plt.sca(ax)
-            plt.yticks(ind, ['FPGA', 'GPU'])
             plt.draw()
 
     
