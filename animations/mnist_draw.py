@@ -4,6 +4,7 @@ import time
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.patches as mpatches
 
 from matplotlib.widgets import Button
 from keras.datasets import mnist
@@ -41,7 +42,7 @@ def plot_mnist_digit(splt, pixels, col='gray'):
 
 f = plt.figure(figsize=(8, 8))
 #"Mother Grid spec with enough room for two mnist chars display side by side, plus 1 row below for summary plots
-gsMother = gridspec.GridSpec(3, 1)
+gsMother = gridspec.GridSpec(3, 1, height_ratios=[4,3,1])
 #one row with two columns for chars displays
 gsChars = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[0])
 # the two nx*ny grids for the char displays
@@ -54,8 +55,10 @@ axsGPU = fillCharGrid(f, gsGPU)
 gsSumm = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[1])
 axAcc = plt.Subplot(f,gsSumm[0])
 f.add_subplot(axAcc)
+axExe = plt.Subplot(f,gsSumm[1])
+f.add_subplot(axExe)
 #one row for the two buttons
-gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
+#gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
 #
 
 
@@ -68,7 +71,10 @@ gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
 class Index(object):
     indFPGA = 0
     indGPU = 0
-
+    exeFPGA = [0.]
+    exeGPU = [0.]
+    once = True
+    
     def updateChars(self, axs, ind, results, nImages):
         #simulate the reading of results from board
         from random import randint
@@ -81,22 +87,45 @@ class Index(object):
             color_digits(axs, ids, results)
         return istop;
     
-            
-    def start(self, event):
-        nImages=len(y_test)
-        while (self.indFPGA < nImages or self.indGPU < nImages):
-            accFPGA = float(np.count_nonzero(resultsFPGA))/len(resultsFPGA)
-            accGPU = float(np.count_nonzero(resultsGPU))/len(resultsGPU)
+    def updateExe(self, ax):
+        if (self.indFPGA * self.indGPU):
+            #just making something up for exec time/digit
+            print self.indFPGA - self.exeFPGA[-1]
+            self.exeFPGA += [600.0/(self.indFPGA - self.exeFPGA[-1])]
+            self.exeGPU += [200.0/(self.indGPU - self.exeGPU[-1])]
+            print "exeFPGA= ", self.exeFPGA[-1], " exeGPU= ", self.exeGPU[-1]
+            bins = np.linspace(0.,0.6, 30)
+            ax.hist(self.exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
+            ax.hist(self.exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
+            fpatch = mpatches.Patch(color='blue', label='FPGA')
+            gpatch = mpatches.Patch(color='yellow', label='GPU')
+            ax.legend(handles=[fpatch,gpatch])
+            plt.draw()
+
+    def updateAcc(self, ax):
+        if (self.indFPGA * self.indGPU):
+            accFPGA = float(np.count_nonzero(resultsFPGA[:self.indFPGA]))/self.indFPGA
+            accGPU = float(np.count_nonzero(resultsGPU[:self.indGPU]))/self.indGPU
             print "accFPGA= ", accFPGA, " accGPU= ", accGPU
             ind=np.arange(2)
             acc= np.array([accFPGA, accGPU])
-            axAcc.bar(ind, acc, color="Green")
-            axAcc.bar(ind, np.array([1,1])-acc, bottom=acc, color="Red")
-            plt.sca(axAcc)
-            plt.xticks(ind, ['FPGA', 'GPU'])
+            ax.barh(ind, acc, color="Green", label="Correct")
+            ax.barh(ind, np.array([1,1])-acc, left=acc, color="Red")
+            spatch = mpatches.Patch(color='Green', label='Success')
+            ax.legend(handles=[spatch])
+            plt.sca(ax)
+            plt.yticks(ind, ['FPGA', 'GPU'])
             plt.draw()
+
+    
+    def start(self, event):
+        nImages=len(y_test)
+        while (self.indFPGA < nImages or self.indGPU < nImages):
+            self.updateAcc(axAcc)
+            self.updateExe(axExe)
             self.indFPGA=self.updateChars(axsFPGA, self.indFPGA, resultsFPGA, nImages)
             self.indGPU=self.updateChars(axsGPU, self.indGPU, resultsGPU, nImages)
+            if self.once: self.once=False
             
         print "done. Please restart"            
         from threading import Thread
@@ -136,12 +165,13 @@ axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
 callback = Index()
 bstart = Button(axstart, 'Start')
 bstart.on_clicked(callback.start)
-bstop = Button(axstop, 'Restart')
+bstop = Button(axstop, 'Reset')
 bstop.on_clicked(callback.restart)
 
 plot_digits(axsFPGA)
 plot_digits(axsGPU)
-
+callback.updateAcc(axAcc)
+callback.updateExe(axExe)
 
 #ani=anim.ArtistAnimation(f,images, interval=50, blit=False, repeat=False)
 plt.show()
