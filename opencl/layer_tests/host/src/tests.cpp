@@ -172,9 +172,26 @@ void run_tests() {
   status = clSetKernelArg(convolute_2d_relu, 0, sizeof(cl_mem), &cro);
   checkError(status, "Failed to set argument");
 
+  // Other arguments
+  int filter_size = 5;
+  status = clSetKernelArg(convolute_2d_relu, 4, sizeof(int), &filter_size);
+  checkError(status, "Failed to set argument");
+  int output_width_height = 24;
+  status = clSetKernelArg(convolute_2d_relu, 5, sizeof(int), &output_width_height);
+  checkError(status, "Failed to set argument");
+  int num_filters = 6;
+  status = clSetKernelArg(convolute_2d_relu, 6, sizeof(int), &num_filters);
+  checkError(status, "Failed to set argument");
+  int num_input_channels = 1;
+  status = clSetKernelArg(convolute_2d_relu, 7, sizeof(int), &num_input_channels);
+  checkError(status, "Failed to set argument");
+  int padded_matrix_dim = 28;
+  status = clSetKernelArg(convolute_2d_relu, 8, sizeof(int), &padded_matrix_dim);
+  checkError(status, "Failed to set argument");
+
   // Enqueue kernel.
-  const size_t global_work_size = 3;
-  status = clEnqueueNDRangeKernel(queue, convolute_2d_relu, 1, NULL, &global_work_size, NULL, 3, write_event, &kernel_event);
+  const size_t[] global_work_size = {28, 28, 6}; //height, width, num_filters
+  status = clEnqueueNDRangeKernel(queue, convolute_2d_relu, 3, NULL, &global_work_size, NULL, 3, write_event, &kernel_event);
   checkError(status, "Failed to launch kernel");
 
   status = clEnqueueReadBuffer(queue, cro, CL_FALSE, 0, 3456 * sizeof(float), output[0], 1, &kernel_event, &finish_event);
@@ -192,6 +209,8 @@ void run_tests() {
   // Get kernel time using the OpenCL event profiling API.
   cl_ulong time_ns = getStartEndTime(kernel_event);
   printf("Kernel time (conv-relu): %0.3f ms\n", double(time_ns) * 1e-6);
+
+  // --- END RUNNING CONV RELU TEST --- //
 
   // TODO - implement other layers here! TODO - verify results
   clReleaseEvent(kernel_event);
