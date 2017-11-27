@@ -30,15 +30,15 @@ const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 bool 
 FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum, 
 			    uint16_t nParameters, uint16_t *data) const { 
-  *p_h2p_lw_IO1_addr = (1<<31) | (layerID<<16) |   moduleNum;
+  *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
   std::cout << std::hex 
 	    << "FPGAIORegs::writeParameters IO1 0x" << layerID << " 0x" << moduleNum 
 	    << " 0x" << *p_h2p_lw_IO1_addr << std::endl;
   for (uint16_t i=0; i<nParameters; ++i){
-    *p_h2p_lw_IO2_addr = (i<<16) | data[i];
+    *p_h2p_lw_IO2_addr = (1<<31) | (i<<16) | data[i];
     std::cout << std::hex 
 	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
-	      << " 0x" << *p_h2p_lw_IO1_addr << std::endl;
+	      << " 0x" << *p_h2p_lw_IO2_addr << std::endl;
   }
   return true;
 }

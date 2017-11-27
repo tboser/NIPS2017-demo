@@ -2,7 +2,7 @@
 #include <vector>
 #include "mnist/mnist_reader.hpp"
 #include "layers/TrainedLayers.hpp"
-#include "registerLoop.h"
+#include "FPGAIORegs.hpp"
 #define MNIST_DATA_LOCATION "../mnist"
 #define KERAS_PARMS "../flat_weights.txt"
 
@@ -10,14 +10,24 @@ using namespace std;
 typedef std::vector<uint8_t> Image_t;
 typedef std::vector<uint8_t> Results_t;
 
-static FPGAIORegs s_fpgaIO;
+static FPGAIORegs s_fpgaIO("/tmp/mmap.bin");
 
 void sendMatricesFPGA(const std::string& path) {
   cout << "sendMatricesFPGA" <<endl;
   Layers_t layers;
   readLayersFlatFile(path, layers);
-  cout << layers[0].nBiases <<endl;
-  registerLoop();
+  // cout << layers[0].nBiases <<endl;
+  //LeNet C1 5x5 Convs for  6 filters
+  for (int l=0; l<6; ++l) {
+    uint16_t *pData = layers[0].weights.data()+l*25*sizeof(uint16_t);
+    std::cout << l << " " << pData << " " << std::dec << *pData << std::endl;
+    //write 5x5 Conv weights
+    s_fpgaIO.writeParameters(0,l,25,pData);
+  }
+  //write biases for 6 outputs
+  std::cout << "biases " << *(layers[0].biases.data()) << std::endl;
+  s_fpgaIO.writeParameters(0, 7, layers[0].nBiases, layers[0].biases.data());
+  
 }
 
 void startForwardPass(const std::vector<Image_t> /*imgBatch*/) {
@@ -41,41 +51,6 @@ void processResults(const Results_t& /*res*/) {
 
 
 
-bool registerLoop() {
-
-	int loop_count;
-	int led_direction;
-	int led_mask;
-
-	// toggle the LEDs a bit
-
-	loop_count = 0;
-	led_mask = 0x01;
-	led_direction = 0; // 0: left to right direction
-	while( loop_count < 60 ) {
-		
-		// control led
-		*(uint32_t *)h2p_lw_led_addr = ~led_mask; 
-
-		// wait 100ms
-		usleep( 100*1000 );
-		
-		// update led mask
-		if (led_direction == 0){
-			led_mask <<= 1;
-			if (led_mask == (0x01 << (LED_PIO_DATA_WIDTH-1)))
-				 led_direction = 1;
-		}else{
-			led_mask >>= 1;
-			if (led_mask == 0x01){ 
-				led_direction = 0;
-				loop_count++;
-			}
-		}
-		
-	} // while
-}
-
 
 
 int main(int argc, char* argv[]) {
@@ -96,7 +71,7 @@ int main(int argc, char* argv[]) {
   std::cout << "Nbr of test images = " << dataset.test_images.size() << std::endl;
   std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
 
-  unsigned int nTestImgs(dataset.test_images.size());
+  //  unsigned int nTestImgs(dataset.test_images.size());
   /// one prediction per img
 
   //Loop over mnist images stride X

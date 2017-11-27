@@ -5,7 +5,7 @@ public:
   FPGAIORegs(const std::string& mmapFilePath="/dev/mem");
   ~FPGAIORegs();
   int openMMapFile();
-  bool writeParameters(uint16_t layerID, uint16_t moduleNum, 
+  bool writeParameters(uint16_t layerID, uint16_t filterNum, 
 		       uint16_t nParameters, uint16_t *data) const; 
 
 private:

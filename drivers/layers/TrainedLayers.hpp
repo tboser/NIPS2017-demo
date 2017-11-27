@@ -7,9 +7,9 @@
 struct Layer {
   std::string name;
   std::vector<size_t> weightShape;
-  std::vector<int> weights;
+  std::vector<uint16_t> weights;
   size_t nBiases;
-  std::vector<int> biases;
+  std::vector<uint16_t> biases;
   Layer(const std::string& name, const std::string& wShape, const std::string& wStr, const std::string& nBS, const std::string& bStr):
     name(name) 
   {  

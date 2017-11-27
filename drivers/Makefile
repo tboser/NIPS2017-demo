@@ -15,7 +15,7 @@ CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 ARCH= arm
 
-build: $(TARGETS)%
+build: $(TARGETS)
 
 DE10_direct: DE10_direct.o FPGAIORegs.o
 	$(CXX) $(LDFLAGS)   $^ -o $@  
