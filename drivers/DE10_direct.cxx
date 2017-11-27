@@ -2,18 +2,22 @@
 #include <vector>
 #include "mnist/mnist_reader.hpp"
 #include "layers/TrainedLayers.hpp"
-#define MNIST_DATA_LOCATION "/home/calaf/NIPS2017-demo/mnist"
-#define KERAS_PARMS "/home/calaf/NIPS2017-demo/flat_weights.txt"
+#include "registerLoop.h"
+#define MNIST_DATA_LOCATION "../mnist"
+#define KERAS_PARMS "../flat_weights.txt"
 
 using namespace std;
 typedef std::vector<uint8_t> Image_t;
 typedef std::vector<uint8_t> Results_t;
+
+static FPGAIORegs s_fpgaIO;
 
 void sendMatricesFPGA(const std::string& path) {
   cout << "sendMatricesFPGA" <<endl;
   Layers_t layers;
   readLayersFlatFile(path, layers);
   cout << layers[0].nBiases <<endl;
+  registerLoop();
 }
 
 void startForwardPass(const std::vector<Image_t> /*imgBatch*/) {
@@ -34,6 +38,45 @@ void readPredictions(Results_t preds) {
 void processResults(const Results_t& /*res*/) {
   cout << "processResults" << endl;
 }
+
+
+
+bool registerLoop() {
+
+	int loop_count;
+	int led_direction;
+	int led_mask;
+
+	// toggle the LEDs a bit
+
+	loop_count = 0;
+	led_mask = 0x01;
+	led_direction = 0; // 0: left to right direction
+	while( loop_count < 60 ) {
+		
+		// control led
+		*(uint32_t *)h2p_lw_led_addr = ~led_mask; 
+
+		// wait 100ms
+		usleep( 100*1000 );
+		
+		// update led mask
+		if (led_direction == 0){
+			led_mask <<= 1;
+			if (led_mask == (0x01 << (LED_PIO_DATA_WIDTH-1)))
+				 led_direction = 1;
+		}else{
+			led_mask >>= 1;
+			if (led_mask == 0x01){ 
+				led_direction = 0;
+				loop_count++;
+			}
+		}
+		
+	} // while
+}
+
+
 
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
