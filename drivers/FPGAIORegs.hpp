@@ -1,12 +1,14 @@
-#ifndef FPGAIOREGS_H
-#define FPGAIOREGS_H 1
+#ifndef FPGAIOREGS_HPP
+#define FPGAIOREGS_HPP 1
+class Layer;
 class FPGAIORegs {
 public:
   FPGAIORegs(const std::string& mmapFilePath="/dev/mem");
   ~FPGAIORegs();
   int openMMapFile();
-  bool writeParameters(uint16_t layerID, uint16_t filterNum, 
-		       uint16_t nParameters, uint16_t *data) const; 
+  bool writeParameters(uint16_t layerID, uint16_t moduleNum, 
+		       uint16_t nParameters, const int16_t *data) const; 
+  bool writeCnvLayer(const Layer& layer, uint16_t layerID) const;
 
 private:
   uint32_t *p_h2p_lw_IO1_addr=0x0; 

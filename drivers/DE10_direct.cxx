@@ -16,17 +16,12 @@ void sendMatricesFPGA(const std::string& path) {
   cout << "sendMatricesFPGA" <<endl;
   Layers_t layers;
   readLayersFlatFile(path, layers);
-  // cout << layers[0].nBiases <<endl;
-  //LeNet C1 5x5 Convs for  6 filters
-  for (int l=0; l<6; ++l) {
-    uint16_t *pData = layers[0].weights.data()+l*25*sizeof(uint16_t);
-    std::cout << l << " " << pData << " " << std::dec << *pData << std::endl;
-    //write 5x5 Conv weights
-    s_fpgaIO.writeParameters(0,l,25,pData);
-  }
-  //write biases for 6 outputs
-  std::cout << "biases " << *(layers[0].biases.data()) << std::endl;
-  s_fpgaIO.writeParameters(0, 7, layers[0].nBiases, layers[0].biases.data());
+
+  //LeNet C1 5x5 Convs with one input channel and 6 filters
+  s_fpgaIO.writeCnvLayer(layers[0], 0);
+  
+  //LeNet C2 5x5 Convs with 6 input channels and 16 filters
+  s_fpgaIO.writeCnvLayer(layers[1], 1);
   
 }
 
