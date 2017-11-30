@@ -22,13 +22,14 @@ refer to user manual chapter 7 for details about the demo
 #include "hps_0.h"
 #include "layers/TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
+using namespace std;
 
 const uint32_t HW_REGS_BASE ( ALT_STM_OFST );
 //const uint32_t HW_REGS_SPAN (1<<27); //0x04000000
 const uint32_t HW_REGS_SPAN (1<<16);
 const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 
-bool 
+const int16_t*  
 FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum, 
 			    uint16_t nParameters, const int16_t *data) const { 
   *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
@@ -42,6 +43,31 @@ FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum,
 	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
 	      << " 0x" << *p_h2p_lw_IO2_addr << std::endl;
   }
+  return data + (nParameters * sizeof(int16_t));
+}
+
+bool
+FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMod) const {
+  size_t nRows(layer.weightShape[0]);
+  assert(nRows-1<=0xFFFE); //leave 0xFFFF for the biases
+  size_t nColumns(layer.weightShape[1]);
+  size_t nWMod=nRowsPerMod*nColumns;
+
+  const int16_t *pData(layer.weights.data());
+  assert(pData);
+
+  //module loop: one module every nRowsPerMod
+  for (size_t iR=0; iR<nRows; iR += nRowsPerMod) {
+    uint16_t modID = iR;
+    std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " 
+	      << pData << " first weight "  << *pData << std::endl;
+    //write nwMod weights for this module
+    pData = this->writeParameters(layerID, modID, nWMod, pData);
+  }
+  //write biases for nFilters at modID 0xFFFF
+  std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
+  this->writeParameters(layerID, 0xFFFF, layer.nBiases, layer.biases.data());
+
   return true;
 }
 
@@ -51,9 +77,9 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   size_t nCols(layer.weightShape[1]);
   size_t nWMod(nRows*nCols);
   size_t nChannels(layer.weightShape[2]);
-  assert(nChannels<0xFE);  //leave 0xFFFF for the biases
+  assert(nChannels-1<=0xFE);  //leave 0xFFFF for the biases
   size_t nFilters(layer.weightShape[3]);
-  assert(nFilters<0xFF);
+  assert(nFilters-1<=0xFF);
   const int16_t *pData(layer.weights.data());
   assert(pData);
 
@@ -61,11 +87,10 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
       uint16_t modID = i + (f<<8);
-      pData += nWMod * sizeof(int16_t);
       std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " 
 		<< pData << " first weight "  << *pData << std::endl;
       //write nwMod Conv weights for this module
-      this->writeParameters(layerID, modID, nWMod, pData);
+      pData=this->writeParameters(layerID, modID, nWMod, pData);
     }
   }
   //write biases for nFilters at modID 0xFFFF

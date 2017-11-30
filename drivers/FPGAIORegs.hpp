@@ -6,9 +6,10 @@ public:
   FPGAIORegs(const std::string& mmapFilePath="/dev/mem");
   ~FPGAIORegs();
   int openMMapFile();
-  bool writeParameters(uint16_t layerID, uint16_t moduleNum, 
-		       uint16_t nParameters, const int16_t *data) const; 
+  const int16_t* writeParameters(uint16_t layerID, uint16_t moduleNum, 
+				 uint16_t nParameters, const int16_t *data) const; 
   bool writeCnvLayer(const Layer& layer, uint16_t layerID) const;
+  bool writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMod) const;
 
 private:
   uint32_t *p_h2p_lw_IO1_addr=0x0; 

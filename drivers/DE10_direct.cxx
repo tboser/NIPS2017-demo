@@ -22,7 +22,9 @@ void sendMatricesFPGA(const std::string& path) {
   
   //LeNet C2 5x5 Convs with 6 input channels and 16 filters
   s_fpgaIO.writeCnvLayer(layers[1], 1);
-  
+
+  //LeNet FC1 256*120, with 16 rows per FPGA module
+  s_fpgaIO.writeFCLayer(layers[2], 2, 16);
 }
 
 void startForwardPass(const std::vector<Image_t> /*imgBatch*/) {
