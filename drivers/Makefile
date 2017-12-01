@@ -17,10 +17,10 @@ ARCH= arm
 
 build: $(TARGETS)
 
-DE10_direct: DE10_direct.o FPGAIORegs.o layers/TrainedLayers.o
+DE10_direct: DE10_direct.o FPGAIORegs.o TrainedLayers.o
 	$(CXX) $(LDFLAGS)   $^ -o $@  
 
-test_FPGAIORegs: test_FPGAIORegs.o FPGAIORegs.o layers/TrainedLayers.o
+test_FPGAIORegs: test_FPGAIORegs.o FPGAIORegs.o TrainedLayers.o
 	$(CXX) $(LDFLAGS)   $^ -o $@  
 
 %.o: %.cxx

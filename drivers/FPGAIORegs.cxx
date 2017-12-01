@@ -3,6 +3,7 @@ This program demonstrate how to use hps communicate with FPGA through light AXI 
 uses should program the FPGA by GHRD project before executing the program
 refer to user manual chapter 7 for details about the demo
 */
+#define CROSS_COMPILE 1
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -15,19 +16,36 @@ refer to user manual chapter 7 for details about the demo
 #include "socal/socal.h"
 #include "socal/hps.h"
 #include "socal/alt_gpio.h"
+const uint32_t HW_REGS_SPAN (0x04000000);
 #else
 #define ALT_STM_OFST 0x0
 #define ALT_LWFPGASLVS_OFST 0x0
+const uint32_t HW_REGS_SPAN (1<<16);
 #endif
 #include "hps_0.h"
-#include "layers/TrainedLayers.hpp"
+#include "TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
 using namespace std;
 
 const uint32_t HW_REGS_BASE ( ALT_STM_OFST );
-//const uint32_t HW_REGS_SPAN (1<<27); //0x04000000
-const uint32_t HW_REGS_SPAN (1<<16);
 const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
+
+const int16_t*  
+FPGAIORegs::writeData(uint16_t layerID, uint16_t moduleNum, 
+		      uint16_t nParameters, const int16_t *data) const { 
+  *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
+  std::cout << std::hex 
+	    << "FPGAIORegs::writeParameters IO1 0x" << layerID << " 0x" << moduleNum 
+	    << " 0x" << *p_h2p_lw_IO1_addr << std::dec << std::endl;
+  for (uint16_t i=0; i<nParameters; ++i){
+    //notice we have to cast data[i] to unsigned to avoid messing up the whole work
+    *p_h2p_lw_IO2_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
+    std::cout << std::hex 
+	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
+	      << " 0x" << *p_h2p_lw_IO2_addr << std::dec << std::endl;
+  }
+  return data + (nParameters * sizeof(int16_t));
+}
 
 const int16_t*  
 FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum, 
@@ -127,6 +145,14 @@ FPGAIORegs::readResults(Results_t& res) const {
 }
 
 int
+FPGAIORegs::openDevMem() {
+  if ( (m_fd = open( "/dev/mem", ( O_RDWR | O_SYNC) ) ) == -1 ) { 
+    std::cerr << "FPGAIORegs::openMMapFile ERROR: could not open " + m_mmapFilePath;
+  }
+  return m_fd;
+}
+
+int
 FPGAIORegs::openMMapFile() {
   if ( (m_fd = open( m_mmapFilePath.c_str(), 
 		   ( O_RDWR | O_SYNC | O_CREAT | O_TRUNC), 
@@ -168,28 +194,33 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
 {
   // map the address space for the IO registers into user space so we can interact with them.
   // we'll actually map in the entire CSR span of the HPS since we want to access various registers within that span
-
-  if ( (openMMapFile()) == -1 ) throw std::runtime_error("could not open mmap file");
+  if (m_mmapFilePath == "/dev/mem") openDevMem();
+  else openMMapFile();
+  if ( m_fd == -1 ) throw std::runtime_error("could not open mmap file");
   
-  p_virtual_base = (uint32_t*)mmap( NULL, HW_REGS_SPAN, ( PROT_READ | PROT_WRITE ), MAP_SHARED, m_fd, HW_REGS_BASE );
+  pp_virtual_base = mmap( NULL, HW_REGS_SPAN, ( PROT_READ | PROT_WRITE ), MAP_SHARED, m_fd, HW_REGS_BASE );
   
-  if( p_virtual_base == MAP_FAILED ) {
+  if( pp_virtual_base == MAP_FAILED ) {
     printf( "ERROR: mmap() failed...\n" );
     close( m_fd );
   }
-  // std::cout << std::hex << ALT_LWFPGASLVS_OFST <<std::endl;
-  // std::cout << std::hex << IO1_PIO_BASE <<std::endl;
-  // std::cout << std::hex << IO2_PIO_BASE <<std::endl;
-  // std::cout << std::hex << HW_REGS_MASK <<std::endl;
-  // std::cout << std::hex << (IO1_PIO_BASE & HW_REGS_MASK) <<std::endl;
-  assert((uint32_t)( ALT_LWFPGASLVS_OFST + IO1_PIO_BASE )< (uint32_t)( HW_REGS_MASK) );
-  p_h2p_lw_IO1_addr = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IO1_PIO_BASE )); 
-  assert((uint32_t)( ALT_LWFPGASLVS_OFST + IO2_PIO_BASE )< (uint32_t)( HW_REGS_MASK) );
-  p_h2p_lw_IO2_addr = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IO2_PIO_BASE )); 
-  std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
-	    << p_h2p_lw_IO1_addr << " and " << p_h2p_lw_IO2_addr << " in virtual space "
-	    << p_virtual_base << "\n mapped to " 
+  /*  std::cout << std::hex << ALT_LWFPGASLVS_OFST <<std::endl;
+  std::cout << std::hex << IPARMS_PIO_BASE <<std::endl;
+  std::cout << std::hex << HW_REGS_MASK <<std::endl;
+  std::cout << std::hex << ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
+  std::cout << std::hex << pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
+  */
+  pp_h2p_lw_IO1_addr = pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
+  pp_h2p_lw_IO2_addr = pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IADDR_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
+  std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::dec << std::hex
+	    << pp_h2p_lw_IO1_addr << " and " << pp_h2p_lw_IO2_addr << " in virtual space "
+	    << pp_virtual_base << "\n mapped to " 
 	    << m_mmapFilePath << std::dec << std::endl;
+
+  p_virtual_base    = (uint32_t*) pp_virtual_base;
+  p_h2p_lw_IO1_addr = (uint32_t*) pp_h2p_lw_IO1_addr;
+  p_h2p_lw_IO2_addr = (uint32_t*) pp_h2p_lw_IO2_addr;
+
 }
 
 

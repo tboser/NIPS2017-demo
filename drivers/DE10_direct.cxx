@@ -1,39 +1,37 @@
 #include <iostream>
 #include <vector>
 #include "mnist/mnist_reader.hpp"
-#include "layers/TrainedLayers.hpp"
+#include "TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
 #define MNIST_DATA_LOCATION "../mnist"
 #define KERAS_PARMS "../flat_weights.txt"
 
 using namespace std;
 
-static FPGAIORegs s_fpgaIO("/tmp/mmap.bin");
-
-void sendMatricesFPGA(const std::string& path) {
+void sendMatricesFPGA(const std::string& path, const FPGAIORegs& fpgaIO) {
   cout << "sendMatricesFPGA" <<endl;
   Layers_t layers;
   readLayersFlatFile(path, layers);
 
   //LeNet C1 5x5 Convs with one input channel and 6 filters
-  s_fpgaIO.writeCnvLayer(layers[0], 0);
+  fpgaIO.writeCnvLayer(layers[0], 0);
   
   //LeNet C2 5x5 Convs with 6 input channels and 16 filters
-  s_fpgaIO.writeCnvLayer(layers[1], 1);
+  fpgaIO.writeCnvLayer(layers[1], 1);
 
   //LeNet FC1 256*120, with 16 rows per FPGA module
-  s_fpgaIO.writeFCLayer(layers[2], 2, 16);
+  fpgaIO.writeFCLayer(layers[2], 2, 16);
 
-  //LeNet FC1 120*84, with 16 rows per FPGA module
-  s_fpgaIO.writeFCLayer(layers[3], 3);
+  //LeNet FC1 120*84
+  fpgaIO.writeFCLayer(layers[3], 3);
 
-  //LeNet FC1 256*120, with 16 rows per FPGA module
-  s_fpgaIO.writeFCLayer(layers[4], 4);
+  //LeNet FC1 84*10
+  fpgaIO.writeFCLayer(layers[4], 4);
 }
 
-void startForwardPass(const ImageBatch_t& imgBatch) {
+void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
   cout << "startForwardPass" << endl;
-  s_fpgaIO.writeImgBatch(imgBatch);
+  fpgaIO.writeImgBatch(imgBatch);
 }
 
 void waitOnFPGA() {
@@ -59,8 +57,10 @@ void processResults(const Results_t& /*res*/) {
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
 
+  FPGAIORegs fpgaIO("/dev/mem");
+
   //Read keras parms, prepare matrices
-  sendMatricesFPGA(KERAS_PARMS);
+  sendMatricesFPGA(KERAS_PARMS, fpgaIO);
 
   // MNIST_DATA_LOCATION set by Makefile
   std::cout << "MNIST data directory: " << MNIST_DATA_LOCATION << std::endl;
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
       imgBatch.push_back(img);
       ++i;
     }
-    startForwardPass(imgBatch);
+    startForwardPass(imgBatch, fpgaIO);
     readPredictions(mnistPred);
   }
   processResults(mnistPred);
