@@ -19,13 +19,25 @@
  * Doing so may result in duplicate macro names.
  * Instead, use the system header file which has macros with unique names.
  */
+/*CNN to FPGA*/
+#define IPARMS_PIO_BASE 0x3100
+#define IPARMS_PIO_SPAN 32
+#define IPARMS_PIO_END 0x310f
+#define IADDR_PIO_BASE 0x3300
+#define IADDR_PIO_SPAN 32
+#define IADDR_PIO_END 0x330f
+/*RESULTS from FPGA*/
+#define ORES_PIO_BASE 0x3200
+#define ORES_PIO_SPAN 32
+#define ORES_PIO_END 0x320f
+#define IRES_PIO_BASE 0x3500
+#define IRES_PIO_SPAN 32 
+#define IRES_PIO_END 0x350f
+/*IMAGE to FPGA*/
+#define IIMG_PIO_BASE 0x3400
+#define IIMG_PIO_SPAN 32 
+#define IIMG_PIO_END 0x340f
 
-#define IO1_PIO_BASE 0x0100
-#define IO1_PIO_SPAN 32
-#define IO1_PIO_END 0x310f
-#define IO2_PIO_BASE 0x0200
-#define IO2_PIO_SPAN 32
-#define IO2_PIO_END 0x320f
 
 /*
  * Macros for device 'sysid_qsys', class 'altera_avalon_sysid_qsys'
