@@ -35,13 +35,13 @@ FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum,
   *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
   std::cout << std::hex 
 	    << "FPGAIORegs::writeParameters IO1 0x" << layerID << " 0x" << moduleNum 
-	    << " 0x" << *p_h2p_lw_IO1_addr << std::endl;
+	    << " 0x" << *p_h2p_lw_IO1_addr << std::dec << std::endl;
   for (uint16_t i=0; i<nParameters; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole work
     *p_h2p_lw_IO2_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
     std::cout << std::hex 
 	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
-	      << " 0x" << *p_h2p_lw_IO2_addr << std::endl;
+	      << " 0x" << *p_h2p_lw_IO2_addr << std::dec << std::endl;
   }
   return data + (nParameters * sizeof(int16_t));
 }
@@ -50,6 +50,9 @@ bool
 FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMod) const {
   size_t nRows(layer.weightShape[0]);
   assert(nRows-1<=0xFFFE); //leave 0xFFFF for the biases
+
+  if (0==nRowsPerMod) nRowsPerMod=nRows;
+  
   size_t nColumns(layer.weightShape[1]);
   size_t nWMod=nRowsPerMod*nColumns;
 
@@ -59,11 +62,17 @@ FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMo
   //module loop: one module every nRowsPerMod
   for (size_t iR=0; iR<nRows; iR += nRowsPerMod) {
     uint16_t modID = iR;
-    std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " 
+    std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID "
+	      << layerID << " modID " << modID << " first weight address " 
 	      << pData << " first weight "  << *pData << std::endl;
     //write nwMod weights for this module
     pData = this->writeParameters(layerID, modID, nWMod, pData);
   }
+
+  //write "divide by" for all layers
+  std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " divide by " << m_divideBy << std::endl;
+  this->writeParameters(layerID, 0xFFFE, 1, &m_divideBy);
+
   //write biases for nFilters at modID 0xFFFF
   std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
   this->writeParameters(layerID, 0xFFFF, layer.nBiases, layer.biases.data());
@@ -86,17 +95,34 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   //module loop: one module per input and per output channel
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
-      uint16_t modID = i + (f<<8);
+      uint16_t modID = i * f;
       std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " 
 		<< pData << " first weight "  << *pData << std::endl;
       //write nwMod Conv weights for this module
       pData=this->writeParameters(layerID, modID, nWMod, pData);
     }
   }
+  
+  //write "divide by" for all layers
+  std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " divide by " << m_divideBy << std::endl;
+  this->writeParameters(layerID, 0xFFFE, 1, &m_divideBy);
+  
   //write biases for nFilters at modID 0xFFFF
   std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
   this->writeParameters(layerID, 0xFFFF, layer.nBiases, layer.biases.data());
 
+  return true;
+}
+
+
+bool
+FPGAIORegs::writeImgBatch(const ImageBatch_t& imgs) const {
+  return true;
+}
+
+
+bool
+FPGAIORegs::readResults(Results_t& res) const {
   return true;
 }
 
@@ -105,7 +131,7 @@ FPGAIORegs::openMMapFile() {
   if ( (m_fd = open( m_mmapFilePath.c_str(), 
 		   ( O_RDWR | O_SYNC | O_CREAT | O_TRUNC), 
 		   (mode_t)0600) ) == -1 ) { 
-    std::cerr << "FPGAIORegs() ERROR: could not open " + m_mmapFilePath;
+    std::cerr << "FPGAIORegs::openMMapFile ERROR: could not open " + m_mmapFilePath;
     return -1;
   }
   /* Stretch the file size to the size of the (mmapped) array of ints
@@ -137,8 +163,8 @@ FPGAIORegs::openMMapFile() {
   return m_fd;
 }
 
-FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath) :
-  m_mmapFilePath(mmapFilePath)
+FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
+  m_mmapFilePath(mmapFilePath), m_divideBy(divideBy)
 {
   // map the address space for the IO registers into user space so we can interact with them.
   // we'll actually map in the entire CSR span of the HPS since we want to access various registers within that span
@@ -163,7 +189,7 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath) :
   std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
 	    << p_h2p_lw_IO1_addr << " and " << p_h2p_lw_IO2_addr << " in virtual space "
 	    << p_virtual_base << "\n mapped to " 
-	    << m_mmapFilePath << std::endl;
+	    << m_mmapFilePath << std::dec << std::endl;
 }
 
 

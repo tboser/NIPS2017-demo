@@ -7,8 +7,6 @@
 #define KERAS_PARMS "../flat_weights.txt"
 
 using namespace std;
-typedef std::vector<uint8_t> Image_t;
-typedef std::vector<uint8_t> Results_t;
 
 static FPGAIORegs s_fpgaIO("/tmp/mmap.bin");
 
@@ -25,16 +23,24 @@ void sendMatricesFPGA(const std::string& path) {
 
   //LeNet FC1 256*120, with 16 rows per FPGA module
   s_fpgaIO.writeFCLayer(layers[2], 2, 16);
+
+  //LeNet FC1 120*84, with 16 rows per FPGA module
+  s_fpgaIO.writeFCLayer(layers[3], 3);
+
+  //LeNet FC1 256*120, with 16 rows per FPGA module
+  s_fpgaIO.writeFCLayer(layers[4], 4);
 }
 
-void startForwardPass(const std::vector<Image_t> /*imgBatch*/) {
+void startForwardPass(const ImageBatch_t& imgBatch) {
   cout << "startForwardPass" << endl;
+  s_fpgaIO.writeImgBatch(imgBatch);
 }
+
 void waitOnFPGA() {
   cout << "waitOnFPGA" <<endl;
 }
 
-void readPredictions(Results_t preds) {
+void readPredictions(Results_t& preds) {
   cout << "readPredictions" <<endl;
   waitOnFPGA();
   Results_t batchPred;
@@ -75,18 +81,23 @@ int main(int argc, char* argv[]) {
   Results_t mnistPred;
   //mnistPred.reserve(nTestImgs);
   unsigned int i(0);
-  const int STRIDE(10);
+  const int STRIDE(2);
   //FIXME!!!!!!!!!!!!!!!  while (i<nTestImgs) {
   while (i<100) {
-    std::vector<Image_t> imgBatch;
+    ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
-    for (int j=0; j<STRIDE; ++j) imgBatch.push_back(dataset.test_images[i++]);
+    for (int j=0; j<STRIDE; ++j) {
+      Image_t img;
+      img.reserve(dataset.test_images[i].size());
+      for (uint8_t pixel: dataset.test_images[i]) img.push_back((uint16_t)pixel); 
+      imgBatch.push_back(img);
+      ++i;
+    }
     startForwardPass(imgBatch);
     readPredictions(mnistPred);
   }
   processResults(mnistPred);
     
-
   cout << "Terasic DE10 MNIST demo driver ending" << endl;
   return 0;
 }
