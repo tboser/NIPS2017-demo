@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <unistd.h>
 #include "mnist/mnist_reader.hpp"
 #include "TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
@@ -32,16 +33,20 @@ void sendMatricesFPGA(const std::string& path, const FPGAIORegs& fpgaIO) {
 void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
   cout << "startForwardPass" << endl;
   fpgaIO.writeImgBatch(imgBatch);
+  //signal to the FPGA it is time to process the batch
+  fpgaIO.startImgProc();
 }
 
 void waitOnFPGA() {
   cout << "waitOnFPGA" <<endl;
+  usleep(1000);
 }
 
-void readPredictions(Results_t& preds) {
+void readPredictions(Results_t& preds, const FPGAIORegs& fpgaIO) {
   cout << "readPredictions" <<endl;
   waitOnFPGA();
-  Results_t batchPred;
+  Results_t batchPred = {Result_t(), Result_t()};
+  fpgaIO.readResults(batchPred);
   ///....
   preds.insert(preds.end(), batchPred.begin(), batchPred.end());
 }
@@ -83,7 +88,7 @@ int main(int argc, char* argv[]) {
   unsigned int i(0);
   const int STRIDE(2);
   //FIXME!!!!!!!!!!!!!!!  while (i<nTestImgs) {
-  while (i<100) {
+  while (i<4) {
     ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
     for (int j=0; j<STRIDE; ++j) {
@@ -94,7 +99,7 @@ int main(int argc, char* argv[]) {
       ++i;
     }
     startForwardPass(imgBatch, fpgaIO);
-    readPredictions(mnistPred);
+    readPredictions(mnistPred, fpgaIO);
   }
   processResults(mnistPred);
     
