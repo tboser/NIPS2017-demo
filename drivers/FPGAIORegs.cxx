@@ -30,36 +30,30 @@ using namespace std;
 const uint32_t HW_REGS_BASE ( ALT_STM_OFST );
 const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 
-const int16_t*  
-FPGAIORegs::writeData(uint16_t layerID, uint16_t moduleNum, 
-		      uint16_t nParameters, const int16_t *data) const { 
-  *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
-  std::cout << std::hex 
-	    << "FPGAIORegs::writeParameters IO1 0x" << layerID << " 0x" << moduleNum 
-	    << " 0x" << *p_h2p_lw_IO1_addr << std::dec << std::endl;
-  for (uint16_t i=0; i<nParameters; ++i){
-    //notice we have to cast data[i] to unsigned to avoid messing up the whole work
-    *p_h2p_lw_IO2_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
-    std::cout << std::hex 
-	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
-	      << " 0x" << *p_h2p_lw_IO2_addr << std::dec << std::endl;
+const uint16_t*  
+FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const { 
+  for (uint16_t i=0; i<nData; ++i){
+    //notice we have to cast data[i] to unsigned to avoid messing up the whole word
+    *p_IImg_addr = (1<<29) | (i<<16) | (uint16_t)data[i]; 
+		    std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
+		    << std::hex << " data=0x" << data[i] 
+		    << " output is 0x" << *p_IImg_addr << std::dec << std::endl;
   }
-  return data + (nParameters * sizeof(int16_t));
+  return data + (nData * sizeof(uint16_t));
 }
-
 const int16_t*  
 FPGAIORegs::writeParameters(uint16_t layerID, uint16_t moduleNum, 
 			    uint16_t nParameters, const int16_t *data) const { 
-  *p_h2p_lw_IO1_addr = ((1<<31) | (layerID<<16) | moduleNum);
+  *p_IParms_addr = ((1<<31) | (layerID<<16) | moduleNum);
   std::cout << std::hex 
-	    << "FPGAIORegs::writeParameters IO1 0x" << layerID << " 0x" << moduleNum 
-	    << " 0x" << *p_h2p_lw_IO1_addr << std::dec << std::endl;
+	    << "FPGAIORegs::writeParameters IParms 0x" << layerID << " 0x" << moduleNum 
+	    << " 0x" << *p_IParms_addr << std::dec << std::endl;
   for (uint16_t i=0; i<nParameters; ++i){
-    //notice we have to cast data[i] to unsigned to avoid messing up the whole work
-    *p_h2p_lw_IO2_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
+    //notice we have to cast data[i] to unsigned to avoid messing up the whole word
+    *p_IAddr_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
     std::cout << std::hex 
-	      << "FPGAIORegs::writeParameters IO2 0x" << i << " 0x" << data[i] 
-	      << " 0x" << *p_h2p_lw_IO2_addr << std::dec << std::endl;
+	      << "FPGAIORegs::writeParameters IAddr 0x" << i << " 0x" << data[i] 
+	      << " 0x" << *p_IAddr_addr << std::dec << std::endl;
   }
   return data + (nParameters * sizeof(int16_t));
 }
@@ -135,6 +129,11 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
 
 bool
 FPGAIORegs::writeImgBatch(const ImageBatch_t& imgs) const {
+  int i=0;
+  for (auto img: imgs) {
+    std::cout << "FPGAIORegs::writeImgBatch: image #" << i++ << std::endl;
+    this->writeData(img.size(), img.data());
+  }
   return true;
 }
 
@@ -198,9 +197,9 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
   else openMMapFile();
   if ( m_fd == -1 ) throw std::runtime_error("could not open mmap file");
   
-  pp_virtual_base = mmap( NULL, HW_REGS_SPAN, ( PROT_READ | PROT_WRITE ), MAP_SHARED, m_fd, HW_REGS_BASE );
+  p_virtual_base = mmap( NULL, HW_REGS_SPAN, ( PROT_READ | PROT_WRITE ), MAP_SHARED, m_fd, HW_REGS_BASE );
   
-  if( pp_virtual_base == MAP_FAILED ) {
+  if( p_virtual_base == MAP_FAILED ) {
     printf( "ERROR: mmap() failed...\n" );
     close( m_fd );
   }
@@ -210,16 +209,17 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
   std::cout << std::hex << ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
   std::cout << std::hex << pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
   */
-  pp_h2p_lw_IO1_addr = pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  pp_h2p_lw_IO2_addr = pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IADDR_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::dec << std::hex
-	    << pp_h2p_lw_IO1_addr << " and " << pp_h2p_lw_IO2_addr << " in virtual space "
-	    << pp_virtual_base << "\n mapped to " 
+  void *pIParms = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
+  void *pIAddr = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IADDR_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
+  void *pIImg = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IIMG_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
+  p_IParms_addr = (uint32_t*) pIParms;
+  p_IAddr_addr = (uint32_t*) pIAddr;
+  p_IImg_addr = (uint32_t*) pIImg;
+  std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
+	    << p_IParms_addr << " and " << p_IAddr_addr << " in virtual space "
+	    << p_virtual_base << "\n mapped to " 
 	    << m_mmapFilePath << std::dec << std::endl;
 
-  p_virtual_base    = (uint32_t*) pp_virtual_base;
-  p_h2p_lw_IO1_addr = (uint32_t*) pp_h2p_lw_IO1_addr;
-  p_h2p_lw_IO2_addr = (uint32_t*) pp_h2p_lw_IO2_addr;
 
 }
 

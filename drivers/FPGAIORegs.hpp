@@ -13,6 +13,7 @@ public:
   ~FPGAIORegs();
   int openDevMem();
   int openMMapFile();
+  const uint16_t* writeData(uint16_t nData, const uint16_t *data) const; 
   const int16_t* writeParameters(uint16_t layerID, uint16_t moduleNum, 
 				 uint16_t nParameters, const int16_t *data) const; 
   bool writeCnvLayer(const Layer& layer, uint16_t layerID) const;
@@ -22,15 +23,13 @@ public:
   
 private:
 
-  void *pp_h2p_lw_IO1_addr=0x0; 
-  void *pp_h2p_lw_IO2_addr=0x0; 
-  void *pp_virtual_base=0x0;
 
-  uint32_t *p_h2p_lw_IO1_addr=0x0; 
-  uint32_t *p_h2p_lw_IO2_addr=0x0; 
-  uint32_t *p_virtual_base=0x0;
+  uint32_t *p_IParms_addr=0x0; 
+  uint32_t *p_IAddr_addr=0x0; 
+  uint32_t *p_IImg_addr=0x0; 
+  void *p_virtual_base=0x0;
   int m_fd=-1;
-  std::string m_mmapFilePath;
+  std::string m_mmapFilePath; 
   int16_t m_divideBy;
   
   friend void test_FPGAIORegs();
