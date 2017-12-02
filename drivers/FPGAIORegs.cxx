@@ -3,7 +3,7 @@ This program demonstrate how to use hps communicate with FPGA through light AXI 
 uses should program the FPGA by GHRD project before executing the program
 refer to user manual chapter 7 for details about the demo
 */
-#define CROSS_COMPILE 1
+//#define ONDE10 1
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -11,7 +11,7 @@ refer to user manual chapter 7 for details about the demo
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
-#ifdef CROSS_COMPILE
+#ifdef ONDE10
 #include "hwlib.h"
 #include "socal/socal.h"
 #include "socal/hps.h"
@@ -27,26 +27,54 @@ const uint32_t HW_REGS_SPAN (1<<16);
 #include "FPGAIORegs.hpp"
 using namespace std;
 
-const uint32_t IPARMS_PIO_BASE ( 0x3100 );
-const uint32_t ORES_PIO_BASE   ( 0x3200 );
-const uint32_t IADDR_PIO_BASE  ( 0x3300 );
-const uint32_t IIMG_PIO_BASE   ( 0x3400 );
-const uint32_t IRES_PIO_BASE   ( 0x3500 );
-
+const uint32_t IPARMS_PIO_BASE=0x3100;
+const uint32_t ORES_PIO_BASE  =0x3200;
+const uint32_t IADDR_PIO_BASE =0x3300;
+const uint32_t IIMG_PIO_BASE  =0x3400;
+const uint32_t IRES_PIO_BASE  =0x3500;
 
 const uint32_t HW_REGS_BASE ( ALT_STM_OFST );
 const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 
+const uint32_t STARTMASK=1<<30;
+const uint32_t RESETMASK=1<<31;
+
+inline uint32_t*
+FPGAIORegs::calcRegAddress(uint32_t base) {
+
+  /*  std::cout << std::hex << ALT_LWFPGASLVS_OFST <<std::endl;
+  std::cout << std::hex << IPARMS_PIO_BASE <<std::endl;
+  std::cout << std::hex << HW_REGS_MASK <<std::endl;
+  std::cout << std::hex << ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
+  std::cout << std::hex << pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
+  */
+  void *pReg = (uint8_t*)p_virtual_base +
+    ((uint32_t)( ALT_LWFPGASLVS_OFST + base ) & (uint32_t)( HW_REGS_MASK ) );
+  return (uint32_t*) pReg;
+}
+
 void
 FPGAIORegs::startImgProc() const {
-  const uint32_t STARTMASK=1<<30;
+  cout << "FPGAIORegs::startImgProc" <<endl;
   *p_IImg_addr = 0;
   *p_IImg_addr = STARTMASK;
   *p_IImg_addr = 0;
 }
+
+int
+FPGAIORegs::waitOnImgProc() const {
+  cout << "FPGAIORegs::waitOnImgProc" <<endl;
+  int i(0);
+  while (0 != (*p_IImg_addr & STARTMASK)) {
+    usleep(1);
+    ++i;
+  }
+  return i;
+}
+  
 void
 FPGAIORegs::resetImgProc() const {
-  const uint32_t RESETMASK=1<<31;
+  cout << "FPGAIORegs::resetImgProc" <<endl;
   *p_IImg_addr = RESETMASK;
   usleep(1);
   *p_IImg_addr = 0;
@@ -56,9 +84,11 @@ FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const {
   for (uint16_t i=0; i<nData; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
     *p_IImg_addr = (1<<29) | (i<<16) | (uint16_t)data[i]; 
-		    std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
-		    << std::hex << " data=0x" << data[i] 
-		    << " output is 0x" << *p_IImg_addr << std::dec << std::endl;
+    if (0 != data[i]) {
+      std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
+		<< std::hex << " data=0x" << data[i] 
+		<< " output is 0x" << *p_IImg_addr << std::dec << std::endl;
+    }
   }
   return data + (nData * sizeof(uint16_t));
 }
@@ -137,8 +167,8 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
       uint16_t modID = i * f;
-      std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " 
-		<< pData << " first weight "  << *pData << std::endl;
+      std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " << pData;
+      std::cout << " first weight "  << *pData << std::endl;
       //write nwMod Conv weights for this module
       pData=this->writeParameters(layerID, 0, modID, nWMod, pData);
     }
@@ -167,12 +197,14 @@ bool
 FPGAIORegs::readResults(Results_t& res) const {
   for (size_t i=0; i<res.size(); ++i) {
     for (size_t p=0; p<res[i].size(); ++p) {
-      *p_IRes_addr = (1<<31) | i;
+      *p_IRes_addr = (1<<31) | ((p+i*res[i].size())<<16);
+      std::cout << "FPGAIORegs::readResults: Read from 0x"
+		<<  std::hex << *p_IRes_addr << std::dec << std::endl; 
       int32_t r = (*p_ORes_addr)&0xFFFF;
       if (r&0x8000) r=r-0x10000;
       res[i][p]=r;
       std::cout << "FPGAIORegs::readResults: Image=" << i 
-		<< " digit " << p << " prob " << res[i][p] << std::endl; 
+		<< " prob for " << p << " =" << res[i][p] << std::endl; 
     }
   }
 
@@ -239,28 +271,15 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
     printf( "ERROR: mmap() failed...\n" );
     close( m_fd );
   }
-  /*  std::cout << std::hex << ALT_LWFPGASLVS_OFST <<std::endl;
-  std::cout << std::hex << IPARMS_PIO_BASE <<std::endl;
-  std::cout << std::hex << HW_REGS_MASK <<std::endl;
-  std::cout << std::hex << ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
-  std::cout << std::hex << pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
-  */
-  void *pIParms = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  void *pIAddr = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IADDR_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  void *pIImg = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IIMG_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  void *pORes = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + ORES_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  void *pIRes = p_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IRES_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ) ); 
-  p_IParms_addr = (uint32_t*) pIParms;
-  p_IAddr_addr = (uint32_t*) pIAddr;
-  p_IImg_addr = (uint32_t*) pIImg;
-  p_ORes_addr = (uint32_t*) pORes;
-  p_IRes_addr = (uint32_t*) pIRes;
+  p_IParms_addr = calcRegAddress(IPARMS_PIO_BASE);
+  p_IAddr_addr  = calcRegAddress(IADDR_PIO_BASE);
+  p_IImg_addr  = calcRegAddress(IIMG_PIO_BASE);
+  p_ORes_addr  = calcRegAddress(ORES_PIO_BASE);
+  p_IRes_addr  = calcRegAddress(IRES_PIO_BASE);
   std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
 	    << p_IParms_addr << " and " << p_IAddr_addr << " in virtual space "
 	    << p_virtual_base << "\n mapped to " 
 	    << m_mmapFilePath << std::dec << std::endl;
-
-
 }
 
 

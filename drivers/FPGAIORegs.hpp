@@ -25,17 +25,21 @@ public:
   bool readResults(Results_t& res) const;
   void startImgProc() const;
   void resetImgProc() const;
+  int waitOnImgProc() const;
   
 private:
-  uint32_t *p_IParms_addr=0x0; 
-  uint32_t *p_IAddr_addr=0x0; 
-  uint32_t *p_IImg_addr=0x0; 
-  uint32_t *p_ORes_addr=0x0; 
-  uint32_t *p_IRes_addr=0x0; 
+
+  uint32_t *p_IParms_addr=0x0;  //write model parms to FPGA - 1st reg
+  uint32_t *p_IAddr_addr=0x0;   //write model parms to FPGA - 2nd reg
+  uint32_t *p_IImg_addr=0x0;    //reg to write image to FPGA
+  uint32_t *p_ORes_addr=0x0;    //reg to read network results from FPGA
+  uint32_t *p_IRes_addr=0x0;    //write FPGA address to read results from
   void *p_virtual_base=0x0;
   int m_fd=-1;
   std::string m_mmapFilePath; 
   int16_t m_divideBy;
+
+  uint32_t* calcRegAddress(uint32_t base);
   
   friend void test_FPGAIORegs();
 };

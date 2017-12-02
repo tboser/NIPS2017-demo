@@ -3,7 +3,8 @@
 #include "FPGAIORegs.hpp"
 
 void test_FPGAIORegs() {
-  FPGAIORegs fIO("/dev/mem");
+  //FPGAIORegs fIO("/dev/mem");
+  FPGAIORegs fIO("/tmp/test.bin");
   std::vector<uint16_t> udata= {0xA,0xB,0xC,0xD,0xE,0xF};
   fIO.writeData(udata.size(), udata.data());
   std::vector<int16_t> data= {-0xA,0xB,-0xC,0xD,-0xE,0xF};

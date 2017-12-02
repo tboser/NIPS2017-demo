@@ -37,22 +37,29 @@ void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
   fpgaIO.startImgProc();
 }
 
-void waitOnFPGA() {
-  cout << "waitOnFPGA" <<endl;
-  usleep(1000);
+void waitOnFPGA(const FPGAIORegs& fpgaIO) {
+  cout << "waitOnFPGA starts" <<endl;
+  int waitMus = fpgaIO.waitOnImgProc();
+  cout << "waitOnFPGA waited " << waitMus <<"mus" <<endl;
 }
 
 void readPredictions(Results_t& preds, const FPGAIORegs& fpgaIO) {
   cout << "readPredictions" <<endl;
-  waitOnFPGA();
+  waitOnFPGA(fpgaIO);
   Results_t batchPred = {Result_t(), Result_t()};
   fpgaIO.readResults(batchPred);
   ///....
   preds.insert(preds.end(), batchPred.begin(), batchPred.end());
 }
 
-void processResults(const Results_t& /*res*/) {
+void processResults(const Results_t& res) {
   cout << "processResults" << endl;
+  int iImg(0);
+  for (auto imgRes : res) {
+    std::cout << std::dec << iImg++ << ':';
+    for (auto prob : imgRes) std::cout << prob << ' ';
+    std::cout << std::endl;
+  }
 }
 
 
@@ -62,8 +69,12 @@ void processResults(const Results_t& /*res*/) {
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
 
+#ifdef ONDE10
   FPGAIORegs fpgaIO("/dev/mem");
-
+#else
+  FPGAIORegs fpgaIO("/tmp/simde10.bin");
+#endif  
+  
   //Read keras parms, prepare matrices
   sendMatricesFPGA(KERAS_PARMS, fpgaIO);
 
@@ -79,8 +90,7 @@ int main(int argc, char* argv[]) {
   std::cout << "Nbr of test images = " << dataset.test_images.size() << std::endl;
   std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
 
-  //  unsigned int nTestImgs(dataset.test_images.size());
-  /// one prediction per img
+  fpgaIO.resetImgProc();
 
   //Loop over mnist images stride X
   Results_t mnistPred;
