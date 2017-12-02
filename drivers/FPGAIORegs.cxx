@@ -38,6 +38,10 @@ const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 
 const uint32_t STARTMASK=1<<30;
 const uint32_t RESETMASK=1<<31;
+const uint32_t WRITTENMASK=1<<31;
+
+const uint16_t WEIGHTGRP=0;
+const uint16_t BIASGRP=1;
 
 inline uint32_t*
 FPGAIORegs::calcRegAddress(uint32_t base) {
@@ -48,6 +52,7 @@ FPGAIORegs::calcRegAddress(uint32_t base) {
   std::cout << std::hex << ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
   std::cout << std::hex << pp_virtual_base + ((uint32_t)( ALT_LWFPGASLVS_OFST + IPARMS_PIO_BASE ) & (uint32_t)( HW_REGS_MASK ))<<std::endl;
   */
+  //cast void* to uint8_t* to get rid of ptr arithmetic warning
   void *pReg = (uint8_t*)p_virtual_base +
     ((uint32_t)( ALT_LWFPGASLVS_OFST + base ) & (uint32_t)( HW_REGS_MASK ) );
   return (uint32_t*) pReg;
@@ -83,6 +88,7 @@ const uint16_t*
 FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const { 
   for (uint16_t i=0; i<nData; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
+    //here WRITTENMASK is bit 30 not 32
     *p_IImg_addr = (1<<29) | (i<<16) | (uint16_t)data[i]; 
     if (0 != data[i]) {
       std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
@@ -98,26 +104,32 @@ FPGAIORegs::writeParameters(uint16_t layerID, uint16_t group, uint16_t moduleNum
   assert(layerID <= 0xFFFF);
   assert(group <= 0xFF);
   assert(moduleNum <= 0xFF);
-  *p_IParms_addr = ((1<<31) | (layerID<<16) | (group<<8) | moduleNum);
+  *p_IParms_addr = ((WRITTENMASK) | (layerID<<16) | (group<<8) | moduleNum);
   std::cout << std::hex 
-	    << "FPGAIORegs::writeParameters IParms 0x" << layerID 
-	    << " 0x" << group << " 0x" << moduleNum 
-	    << " 0x" << *p_IParms_addr << std::dec << std::endl;
+	    << "FPGAIORegs::writeParameters IParms layer 0x" << layerID 
+	    << " group 0x" << group << " mod 0x" << moduleNum 
+	    << " outpus it 0x" << *p_IParms_addr << std::dec << std::endl;
   for (uint16_t i=0; i<nParameters; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
-    *p_IAddr_addr = (1<<31) | (i<<16) | (uint16_t)data[i]; 
+    *p_IAddr_addr = (WRITTENMASK) | (i<<16) | (uint16_t)data[i]; 
     std::cout << std::hex 
-	      << "FPGAIORegs::writeParameters IAddr 0x" << i << " 0x" << data[i] 
+	      << "FPGAIORegs::writeParameters IAddr 0x" << i 
+	      << std::dec
+	      << " data=" << data[i] 
+	      << std::hex
+	      << " data 0x" << data[i] 
 	      << " 0x" << *p_IAddr_addr << std::dec << std::endl;
   }
-  //write "divide by" for all layers
-  std::cout << "FPGAIORegs::writeParameters: layerID " << layerID << " divide by " << m_divideBy << std::endl;
   
-  *p_IAddr_addr = (1<<31) |  ((1+nParameters)<<16) | m_divideBy;
-
-  *p_IParms_addr=0;
-
-  return data + ((1+nParameters) * sizeof(int16_t));
+  //write "divide by" for all weight layers
+  if (group == WEIGHTGRP) {
+    std::cout << "FPGAIORegs::writeParameters: layerID " << layerID << " divide by " << m_divideBy << std::endl;
+    
+    *p_IAddr_addr = (WRITTENMASK) |  ((1+nParameters)<<16) | m_divideBy;
+    
+    *p_IParms_addr=0;
+  }
+  return data + nParameters;
 }
 
 bool
@@ -140,13 +152,14 @@ FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMo
 	      << layerID << " modID " << modID << " first weight address " 
 	      << pData << " first weight "  << *pData << std::endl;
     //write nwMod weights for this module
-    pData = this->writeParameters(layerID, 0, modID, nWMod, pData);
+    pData = this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
   }
 
 
   //write biases for nFilters at modID 0xFF
   std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
-  this->writeParameters(layerID, 1, 0xFF, layer.nBiases, layer.biases.data());
+  this->writeParameters(layerID, BIASGRP, 0xFF, 
+			layer.nBiases, layer.biases.data());
 
   return true;
 }
@@ -166,17 +179,18 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   //module loop: one module per input and per output channel
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
-      uint16_t modID = i * f;
+      uint16_t modID = i + f*nChannels;
       std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " << pData;
       std::cout << " first weight "  << *pData << std::endl;
       //write nwMod Conv weights for this module
-      pData=this->writeParameters(layerID, 0, modID, nWMod, pData);
+      pData=this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
     }
   }
     
   //write biases for nFilters at modID 0xFFFF
   std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
-  this->writeParameters(layerID, 1, 0xFF, layer.nBiases, layer.biases.data());
+  this->writeParameters(layerID, BIASGRP, 0xFF, 
+			layer.nBiases, layer.biases.data());
 
   return true;
 }
@@ -197,7 +211,7 @@ bool
 FPGAIORegs::readResults(Results_t& res) const {
   for (size_t i=0; i<res.size(); ++i) {
     for (size_t p=0; p<res[i].size(); ++p) {
-      *p_IRes_addr = (1<<31) | ((p+i*res[i].size())<<16);
+      *p_IRes_addr = (WRITTENMASK) | ((p+i*res[i].size())<<16);
       std::cout << "FPGAIORegs::readResults: Read from 0x"
 		<<  std::hex << *p_IRes_addr << std::dec << std::endl; 
       int32_t r = (*p_ORes_addr)&0xFFFF;
