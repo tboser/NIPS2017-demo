@@ -81,7 +81,7 @@ def keras_get_layer_output(layer, test_input):
     return get_layer_output([test_input])[0]
 
 def write_array_to_file(file, array_name, array):
-	file.write("float[] "+array_name+" {")
+	file.write("float "+array_name+"[] = {")
 	file.write(str(array[0]))
 	for value in array[1:]:
 		file.write(", "+str(value))

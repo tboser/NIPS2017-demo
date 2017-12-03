@@ -51,13 +51,10 @@ CXXFLAGS += -O2
 endif
 
 # Compiler
-CXX := g++
-ARM := arm-linux-gnueabihf-g++
+CXX := arm-linux-gnueabihf-g++
 
 # Target
-TARGET_LENET := lenet
-TARGET_LENET_ARM := lenet_arm
-TARGET_TESTS := test
+TARGET := host
 TARGET_DIR := bin
 
 # Directories
@@ -69,16 +66,16 @@ INCS := $(wildcard )
 SRCS := $(wildcard host/src/*.cpp ../common/src/AOCLUtils/*.cpp)
 LIBS := rt pthread
 
-# Make lenet compiled with standard g++ for x86!
-all : $(TARGET_DIR)/$(TARGET_LENET)
+# Make it all!
+all : $(TARGET_DIR)/$(TARGET)
 
 # Host executable target.
-$(TARGET_DIR)/$(TARGET_LENET) : Makefile $(SRCS) $(INCS) $(TARGET_DIR)
+$(TARGET_DIR)/$(TARGET) : Makefile $(SRCS) $(INCS) $(TARGET_DIR)
 	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
 			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
 			$(foreach D,$(LIB_DIRS),-L$D) \
 			$(foreach L,$(LIBS),-l$L) \
-			-o $(TARGET_DIR)/$(TARGET_LENET)
+			-o $(TARGET_DIR)/$(TARGET)
 
 $(TARGET_DIR) :
 	$(ECHO)mkdir $(TARGET_DIR)
@@ -86,20 +83,5 @@ $(TARGET_DIR) :
 # Standard make targets
 clean :
 	$(ECHO)rm -f $(TARGET_DIR)/$(TARGET)
-
-#make test 
-tests : $(TARGET_DIR)
-	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
-			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
-			$(foreach D,$(LIB_DIRS),-L$D) \
-			$(foreach L,$(LIBS),-l$L) \
-			-o $(TARGET_DIR)/$(TARGET_TESTS)
-
-arm : $(TARGET_DIR)
-	$(ECHO)$(ARM) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
-			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
-			$(foreach D,$(LIB_DIRS),-L$D) \
-			$(foreach L,$(LIBS),-l$L) \
-			-o $(TARGET_DIR)/$(TARGET_LENET_ARM)
 
 .PHONY : all clean

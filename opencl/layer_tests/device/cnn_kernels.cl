@@ -30,6 +30,7 @@ __kernel void convolute_2d_relu(__global float *c, __global const float *a,
     c[k + j*num_filters + i*num_filters*output_width_height] = conv_result;
 }
 
+/*
 __kernel void convolute_2d(__global float *c, __global const float *a, 
                            __global float *b, __constant float *d, int filter_size, 
                            int output_width_height, int num_filters, int num_input_channels, 
@@ -93,5 +94,6 @@ __kernel void dense(__global float* c, __global float* a,
 
     // Write the matrix to device memory each 
     // thread writes one element
-    c[j] += a[j*wA + i]*b[i] + d[i];
+    c[j] += a[j*wa + i]*b[i] + d[i];
 }
+*/

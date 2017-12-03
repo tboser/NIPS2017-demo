@@ -1,6 +1,9 @@
 from pprint import pprint
 import numpy as np
 import time
+
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -8,6 +11,7 @@ import matplotlib.patches as mpatches
 
 from matplotlib.widgets import Button
 from keras.datasets import mnist
+
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 (nx,ny)=(10,10)
 colors=['Greens', 'Reds']
