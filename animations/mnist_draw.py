@@ -4,6 +4,7 @@ import time
 
 import matplotlib
 matplotlib.use('TkAgg')
+
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
