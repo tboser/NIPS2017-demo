@@ -92,6 +92,7 @@ FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const {
     *p_IImg_addr = (1<<29) | (i<<16) | (uint16_t)data[i]; 
     if (0 != data[i]) {
       std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
+		<< std::dec << " data=" << data[i] 
 		<< std::hex << " data=0x" << data[i] 
 		<< " output is 0x" << *p_IImg_addr << std::dec << std::endl;
     }
@@ -180,8 +181,11 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
       uint16_t modID = i + f*nChannels;
-      std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " modID " << modID << " first weight address " << pData;
-      std::cout << " first weight "  << *pData << std::endl;
+      std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name
+		<< " filter " << f << " channel " << i
+		<< " layerID " << layerID << " modID " << modID 
+		<< hex << " first weight address " << pData
+		<< dec << " first weight "  << *pData << std::endl;
       //write nwMod Conv weights for this module
       pData=this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
     }
@@ -200,7 +204,8 @@ bool
 FPGAIORegs::writeImgBatch(const ImageBatch_t& imgs) const {
   int i=0;
   for (auto img: imgs) {
-    std::cout << "FPGAIORegs::writeImgBatch: image #" << i++ << std::endl;
+    std::cout << "FPGAIORegs::writeImgBatch: image #" << i++
+	      << " of size " << img.size() << std::endl;
     this->writeData(img.size(), img.data());
   }
   return true;
