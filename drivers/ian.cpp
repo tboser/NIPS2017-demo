@@ -191,67 +191,65 @@ int main(int argc, char* argv[]){
 
   CNNHardwareInterface* cnn = new CNNHardwareInterface();
 
-  int i,j;
   //WriteParameter(int layer, int group, int mod_num,int address, int data)
 
   cnn->Reset();
   cnn->SelectOutput(select_num);//13 output
 
-  for(i=0;i<6;i++){ //cnn->WriteParameters
-    for(j=0;j<25;j++){ //cnn->WriteParameters
+  for(int i=0;i<6;i++){ //cnn->WriteParameters
+    for(int j=0;j<25;j++){ //cnn->WriteParameters
       cnn->WriteParameter(0,0,i,j,j);//i%5+j);
     }	
     cnn->WriteParameter(0,0,i,25,8);//divide
 
-    for(i=0;i<6;i++) cnn->WriteParameter(0,1,i,0,1);//first layer bias
+    cnn->WriteParameter(0,1,i,0,1);//first layer bias
   }
 
 ////////////////////////////
 //layer 2
-  for(int k=0;k<6;k++){ //cnn->WriteParameters
-   for(i=0;i<16;i++){ //cnn->WriteParameters
-    for(j=0;j<25;j++){ //cnn->WriteParameters
-      if(k==0&&i==0) cnn->WriteParameter(1,0,16*k+i,j,j/5);//i%5+j);
-      else     cnn->WriteParameter(1,0,16*k+i,j,0);
+  for(int f=0;f<6;f++){ //cnn->WriteParameters
+   for(int s=0;s<16;s++){ //cnn->WriteParameters
+    for(int j=0;j<25;j++){ //cnn->WriteParameters
+      if(f==0&&s==0) cnn->WriteParameter(1,0,16*f+s,j,j/5);
+      else           cnn->WriteParameter(1,0,16*f+s,j,0);
     }	
-    cnn->WriteParameter(1,0,i,25,8);//divide
+    cnn->WriteParameter(1,0,16*f+s,25,8);//divide
    }
   }
 
-  for(i=0;i<16;i++){ 
+  for(int i=0;i<16;i++){ 
     cnn->WriteParameter(1,1,i,0,2);//divide power after sum (not in this version!)
   }
 
-  for(i=0;i<16;i++){ //cnn->WriteParameters
+  for(int i=0;i<16;i++){ //cnn->WriteParameters
     cnn->WriteParameter(1,2,i,0,22);//bias layer 2
   }
 
   //fine till here...
   //here
   int loc=1;
-  for(i=0;i<256*120;i++) cnn->WriteParameter(2,0,0,i,1);//i==loc?1:0);//desne1 mult first dense layer
+  for(int i=0;i<256*120;i++) cnn->WriteParameter(2,0,0,i,1);//i==loc?1:0);//desne1 mult first dense layer
   cnn->WriteParameter(2,1,0,0,0);//desne1 divide after mult
-  for(i=0;i<120;i++){
+  for(int i=0;i<120;i++){
     cnn->WriteParameter(2,2,0,i,-10);//desne1 biases
   }
 
-  for(i=0;i<120*84;i++) cnn->WriteParameter(3,0,0,i,i<120?1:0);//dense2 mult values
+  for(int i=0;i<120*84;i++) cnn->WriteParameter(3,0,0,i,i<120?1:0);//dense2 mult values
   cnn->WriteParameter(3,1,0,i,1);//dense2 divide by power
-  for(i=0;i<120;i++){
+  for(int i=0;i<120;i++){
     cnn->WriteParameter(3,2,0,i,i);//dense2 bias second dense
   }
 
-  for(i=0;i<840;i++) cnn->WriteParameter(4,0,0,i,i<84?1:0);//dense2 mult values
+  for(int i=0;i<840;i++) cnn->WriteParameter(4,0,0,i,i<84?1:0);//dense2 mult values
   cnn->WriteParameter(4,1,0,1,1);//dense2 divide by power
-  for(i=0;i<10;i++){
+  for(int i=0;i<10;i++){
     cnn->WriteParameter(4,2,0,i,10);//dense3 bias second dense
   }
 
   //write data
-  int h;
-  for(h=0;h<1;h++){
-    for(i=0;i<28;i++){
-      for(j=0;j<28;j++){
+  for(int h=0;h<1;h++){
+    for(int i=0;i<28;i++){
+      for(int j=0;j<28;j++){
 	cnn->SetImagePixel(h,i,j,28*j+i);
       }
     }
