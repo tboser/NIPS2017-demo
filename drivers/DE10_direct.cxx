@@ -37,26 +37,29 @@ void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
   fpgaIO.startImgProc();
 }
 
-void waitOnFPGA(const FPGAIORegs& fpgaIO) {
+int waitOnFPGA(const FPGAIORegs& fpgaIO) {
   cout << "waitOnFPGA starts" <<endl;
   int waitMus = fpgaIO.waitOnImgProc();
   cout << "waitOnFPGA waited " << waitMus <<"mus" <<endl;
+  return waitMus;
 }
 
 void readPredictions(Results_t& preds, const FPGAIORegs& fpgaIO) {
   cout << "readPredictions" <<endl;
-  waitOnFPGA(fpgaIO);
+  int waitMus=waitOnFPGA(fpgaIO);
   Results_t batchPred = {Result_t(), Result_t()};
   fpgaIO.readResults(batchPred);
   ///....
   preds.insert(preds.end(), batchPred.begin(), batchPred.end());
 }
 
-void processResults(const Results_t& res) {
+template <class LABELS>
+void processResults(const Results_t& res, const LABELS& labels ) {
   cout << "processResults" << endl;
   int iImg(0);
   for (auto imgRes : res) {
-    std::cout << std::dec << iImg++ << ':';
+    std::cout << std::dec << iImg << ':';
+    std::cout << std::dec << (int)labels[iImg++] << ':';
     for (auto prob : imgRes) std::cout << prob << ' ';
     std::cout << std::endl;
   }
@@ -70,9 +73,9 @@ int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
 
 #ifdef ONDE10
-  FPGAIORegs fpgaIO("/dev/mem",3);
+  FPGAIORegs fpgaIO("/dev/mem",1);
 #else
-  FPGAIORegs fpgaIO("/tmp/simde10.bin");
+  FPGAIORegs fpgaIO("/tmp/simde10.bin",3);
 #endif  
   
   //Read keras parms, prepare matrices
@@ -91,14 +94,15 @@ int main(int argc, char* argv[]) {
   std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
 
   fpgaIO.resetImgProc();
+  fpgaIO.selectOutput(1);
 
   //Loop over mnist images stride X
   Results_t mnistPred;
   mnistPred.reserve(dataset.test_images.size());
   unsigned int i(0);
   const int STRIDE(2);
-  while (i<dataset.test_images.size()) {
-    //while (i<4) {
+  // while (i<dataset.test_images.size()) {
+  while (i<40) {
     ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
     for (int j=0; j<STRIDE; ++j) {
@@ -111,7 +115,7 @@ int main(int argc, char* argv[]) {
     startForwardPass(imgBatch, fpgaIO);
     readPredictions(mnistPred, fpgaIO);
   }
-  processResults(mnistPred);
+  processResults(mnistPred, dataset.test_labels);
     
   cout << "Terasic DE10 MNIST demo driver ending" << endl;
   return 0;

@@ -92,8 +92,13 @@ FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const {
   for (uint16_t i=0; i<nData; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
     //here WRITTENMASK is bit 30 not 32
-    *p_IImg_addr = (1<<29) | (i<<16) | (data[i] &0xFFFF); 
+    if (i<10) {
+      *p_IImg_addr = (1<<29) | (i<<16) | i ; 
+    } else {
+      *p_IImg_addr = (1<<29) | (i<<16) | (data[i] &0xFFFF); 
+    }
     if (0 != data[i]) {
+    //    if (0 != data[i] && i<10) {
       if (m_debug>2) {
 	std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
 		  << std::dec << " data=" << data[i] 
@@ -183,7 +188,15 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   assert(nChannels-1<=0xFE);  //leave 0xFFFF for the biases
   size_t nFilters(layer.weightShape[3]);
   assert(nFilters-1<=0xFF);
-  const int16_t *pData(layer.weights.data());
+  std::vector<int16_t> test =
+    { 1, 0, 0, 0, 0,
+      1, 0, 0, 0, 0,
+      1, 0, 0, 0, 0,
+      1, 0, 0, 0, 0,
+      1, 0, 0, 0, 0 };
+      
+  const int16_t *pData(test.data());
+  //FIMXE const int16_t *pData(layer.weights.data());
   assert(pData);
 
   //module loop: one module per input and per output channel
@@ -204,12 +217,17 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
     
   //write biases for nFilters at modID 0xFFFF
   if (m_debug) std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
-  this->writeParameters(layerID, BIASGRP, 0xFF, 
-			layer.nBiases, layer.biases.data());
+  
+  //FIXME  this->writeParameters(layerID, BIASGRP, 0, 
+  //			layer.nBiases, layer.biases.data());
+  std::vector<int16_t> test2;
+  for (size_t i=0; i<layer.nBiases; ++i) test2.push_back(0);
+  this->writeParameters(layerID, BIASGRP, 0, 
+			layer.nBiases, test2.data());
 
   return true;
 }
-
+//in the future
 //elem 25 is bias
 //26 is divide by
 
@@ -242,9 +260,9 @@ FPGAIORegs::readResults(Results_t& res) const {
   for (size_t i=0; i<res.size(); ++i) {
     for (size_t p=0; p<res[i].size(); ++p) {
       uint32_t addr = (WRITTENMASK) | ((p+i*res[i].size())<<16); 
-      cout << addr << endl;
+      //cout << addr << endl;
       *p_IRes_addr = addr;
-      if (m_debug>2) {
+      if (m_debug>1) {
 	std::cout << "FPGAIORegs::readResults: Read from 0x"
 		  <<  std::hex << *p_IRes_addr << std::dec << std::endl; 
       }

@@ -4,8 +4,14 @@
 #include <vector>
 typedef std::vector<uint16_t> Image_t;
 typedef std::vector<Image_t> ImageBatch_t;
+struct Result {
+  std::array<int16_t,10> probs;
+  int timeMus;
+  Result(int time) : timeMus(time) {}
+};
+  
 typedef std::array<int16_t,10> Result_t;
-typedef std::vector<Result_t > Results_t;
+typedef std::vector<Result_t> Results_t;
 
 class Layer;
 class FPGAIORegs {

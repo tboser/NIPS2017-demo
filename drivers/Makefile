@@ -10,8 +10,8 @@ HWLIBS_ROOT = $(SOCEDS_ROOT)/ip/altera/hps/altera_hps/hwlib
 #CROSS_COMPILE = arm-angstrom-linux-gnueabi-
 CFLAGS = -g -Wall -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/
 ON_DE10 = -DONDE10
-CXXFLAGS = -std=c++11 -g -Wall $(ON_DE10) -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/ -I ../mnist/include
-LDFLAGS =  -g -Wall 
+CXXFLAGS = -std=c++11 -Wall $(ON_DE10) -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/ -I ../mnist/include
+LDFLAGS =  -Wall 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 ARCH= arm
