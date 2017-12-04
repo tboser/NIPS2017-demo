@@ -4,14 +4,15 @@
 #include <vector>
 typedef std::vector<uint16_t> Image_t;
 typedef std::vector<Image_t> ImageBatch_t;
-typedef std::array<uint16_t,10> Result_t;
+typedef std::array<int16_t,10> Result_t;
 typedef std::vector<Result_t > Results_t;
 
 class Layer;
 class FPGAIORegs {
 public:
   FPGAIORegs(const std::string& mmapFilePath="/dev/mem",
-	     int16_t divideBy=2);
+	     int debug=1, 
+	     int16_t divideBy=4);
   ~FPGAIORegs();
   int openDevMem();
   int openMMapFile();
@@ -26,6 +27,8 @@ public:
   void startImgProc() const;
   void resetImgProc() const;
   int waitOnImgProc() const;
+  bool selectOutput(int i);
+
   
 private:
 
@@ -36,6 +39,7 @@ private:
   uint32_t *p_IRes_addr=0x0;    //write FPGA address to read results from
   void *p_virtual_base=0x0;
   int m_fd=-1;
+  int m_debug;
   std::string m_mmapFilePath; 
   int16_t m_divideBy;
 

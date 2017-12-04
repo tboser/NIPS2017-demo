@@ -5,7 +5,7 @@
 #include "TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
 #define MNIST_DATA_LOCATION "../mnist"
-#define KERAS_PARMS "../flat_weights.txt"
+#define KERAS_PARMS "../flat_weights_discrete.txt"
 
 using namespace std;
 
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
 
 #ifdef ONDE10
-  FPGAIORegs fpgaIO("/dev/mem");
+  FPGAIORegs fpgaIO("/dev/mem",3);
 #else
   FPGAIORegs fpgaIO("/tmp/simde10.bin");
 #endif  
@@ -94,11 +94,11 @@ int main(int argc, char* argv[]) {
 
   //Loop over mnist images stride X
   Results_t mnistPred;
-  //mnistPred.reserve(nTestImgs);
+  mnistPred.reserve(dataset.test_images.size());
   unsigned int i(0);
   const int STRIDE(2);
-  //FIXME!!!!!!!!!!!!!!!  while (i<nTestImgs) {
-  while (i<4) {
+  while (i<dataset.test_images.size()) {
+    //while (i<4) {
     ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
     for (int j=0; j<STRIDE; ++j) {

@@ -173,6 +173,7 @@ int main(){
       cnn->WriteParameter(j,0,0,i,i%5+j);
     }	
     cnn->WriteParameter(j,0,0,25,j);
+    cnn->WriteParameter(j,0,0,26,0);
   }
 
   cnn->WriteParameter(0,1,0,0,1);//bias
@@ -205,7 +206,7 @@ int main(){
     }
   }
   
-  cnn->SelectOutput(8);
+  cnn->SelectOutput(0);
 
   cnn->Start();
   usleep(10000);

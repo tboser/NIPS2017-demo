@@ -61,16 +61,19 @@ FPGAIORegs::calcRegAddress(uint32_t base) {
 void
 FPGAIORegs::startImgProc() const {
   cout << "FPGAIORegs::startImgProc" <<endl;
-  *p_IImg_addr = 0;
-  *p_IImg_addr = STARTMASK;
-  *p_IImg_addr = 0;
+  this->resetImgProc();
+  *p_IImg_addr = 0;         //start
+  *p_IImg_addr = STARTMASK; //start
+  usleep(1);
+  *p_IImg_addr = 0;         //clear start
 }
 
 int
 FPGAIORegs::waitOnImgProc() const {
   cout << "FPGAIORegs::waitOnImgProc" <<endl;
   int i(0);
-  while (0 != (*p_IImg_addr & STARTMASK)) {
+  while (0 != (*p_ORes_addr & STARTMASK)) {
+    //    cout << "i=" << i << hex << " " << *p_ORes_addr << " " << STARTMASK << endl;
     usleep(1);
     ++i;
   }
@@ -89,12 +92,14 @@ FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const {
   for (uint16_t i=0; i<nData; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
     //here WRITTENMASK is bit 30 not 32
-    *p_IImg_addr = (1<<29) | (i<<16) | (uint16_t)data[i]; 
+    *p_IImg_addr = (1<<29) | (i<<16) | (data[i] &0xFFFF); 
     if (0 != data[i]) {
-      std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
-		<< std::dec << " data=" << data[i] 
-		<< std::hex << " data=0x" << data[i] 
-		<< " output is 0x" << *p_IImg_addr << std::dec << std::endl;
+      if (m_debug>2) {
+	std::cout << "FPGAIORegs::writeData i=" << std::dec << i 
+		  << std::dec << " data=" << data[i] 
+		  << std::hex << " data=0x" << data[i] 
+		  << " output is 0x" << *p_IImg_addr << std::dec << std::endl;
+      }
     }
   }
   return data + (nData * sizeof(uint16_t));
@@ -113,18 +118,20 @@ FPGAIORegs::writeParameters(uint16_t layerID, uint16_t group, uint16_t moduleNum
   for (uint16_t i=0; i<nParameters; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
     *p_IAddr_addr = (WRITTENMASK) | (i<<16) | (uint16_t)data[i]; 
-    std::cout << std::hex 
-	      << "FPGAIORegs::writeParameters IAddr 0x" << i 
-	      << std::dec
-	      << " data=" << data[i] 
-	      << std::hex
-	      << " data 0x" << data[i] 
-	      << " 0x" << *p_IAddr_addr << std::dec << std::endl;
+    if (m_debug>1) {
+      std::cout << std::hex 
+		<< "FPGAIORegs::writeParameters IAddr 0x" << i 
+		<< std::dec
+		<< " data=" << data[i] 
+		<< std::hex
+		<< " data 0x" << data[i] 
+		<< " 0x" << *p_IAddr_addr << std::dec << std::endl;
+    }
   }
   
   //write "divide by" for all weight layers
   if (group == WEIGHTGRP) {
-    std::cout << "FPGAIORegs::writeParameters: layerID " << layerID << " divide by " << m_divideBy << std::endl;
+    if (m_debug>0) std::cout << "FPGAIORegs::writeParameters: layerID " << layerID << " divide by " << m_divideBy << std::endl;
     
     *p_IAddr_addr = (WRITTENMASK) |  ((1+nParameters)<<16) | m_divideBy;
     
@@ -149,16 +156,18 @@ FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMo
   //module loop: one module every nRowsPerMod
   for (size_t iR=0; iR<nRows; iR += nRowsPerMod) {
     uint16_t modID = iR;
-    std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID "
-	      << layerID << " modID " << modID << " first weight address " 
-	      << pData << " first weight "  << *pData << std::endl;
+    if (m_debug>2) {
+      std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID "
+		<< layerID << " modID " << modID << " first weight address " 
+		<< pData << " first weight "  << *pData << std::endl;
+    }
     //write nwMod weights for this module
     pData = this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
   }
 
 
   //write biases for nFilters at modID 0xFF
-  std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
+  if (m_debug>0) std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
   this->writeParameters(layerID, BIASGRP, 0xFF, 
 			layer.nBiases, layer.biases.data());
 
@@ -181,31 +190,47 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   for (size_t f=0; f<nFilters; ++f) {
     for (size_t i=0; i<nChannels; ++i) {
       uint16_t modID = i + f*nChannels;
-      std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name
-		<< " filter " << f << " channel " << i
-		<< " layerID " << layerID << " modID " << modID 
-		<< hex << " first weight address " << pData
-		<< dec << " first weight "  << *pData << std::endl;
+      if (m_debug>1) {
+	std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name
+		  << " filter " << f << " channel " << i
+		  << " layerID " << layerID << " modID " << modID 
+		  << hex << " first weight address " << pData
+		  << dec << " first weight "  << *pData << std::endl;
+      }
       //write nwMod Conv weights for this module
       pData=this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
     }
   }
     
   //write biases for nFilters at modID 0xFFFF
-  std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
+  if (m_debug) std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
   this->writeParameters(layerID, BIASGRP, 0xFF, 
 			layer.nBiases, layer.biases.data());
 
   return true;
 }
 
+//elem 25 is bias
+//26 is divide by
+
+bool
+FPGAIORegs::selectOutput(int i){	//select output
+  //  *(uint32_t *) para_wr_addr1 = (1<<31) | (6<<16) | (i&0xff);
+  *p_IParms_addr = (1<<31) | (6<<16) | (i&0xff);
+  *p_IParms_addr = (1<<31) | (6<<16) | (i&0xff);
+  *p_IParms_addr = 0;
+  *p_IAddr_addr = 0;
+  return true;
+}
 
 bool
 FPGAIORegs::writeImgBatch(const ImageBatch_t& imgs) const {
   int i=0;
   for (auto img: imgs) {
-    std::cout << "FPGAIORegs::writeImgBatch: image #" << i++
-	      << " of size " << img.size() << std::endl;
+    if (m_debug) {
+      std::cout << "FPGAIORegs::writeImgBatch: image #" << i++
+		<< " of size " << img.size() << std::endl;
+    }
     this->writeData(img.size(), img.data());
   }
   return true;
@@ -216,17 +241,22 @@ bool
 FPGAIORegs::readResults(Results_t& res) const {
   for (size_t i=0; i<res.size(); ++i) {
     for (size_t p=0; p<res[i].size(); ++p) {
-      *p_IRes_addr = (WRITTENMASK) | ((p+i*res[i].size())<<16);
-      std::cout << "FPGAIORegs::readResults: Read from 0x"
-		<<  std::hex << *p_IRes_addr << std::dec << std::endl; 
-      int32_t r = (*p_ORes_addr)&0xFFFF;
+      uint32_t addr = (WRITTENMASK) | ((p+i*res[i].size())<<16); 
+      cout << addr << endl;
+      *p_IRes_addr = addr;
+      if (m_debug>2) {
+	std::cout << "FPGAIORegs::readResults: Read from 0x"
+		  <<  std::hex << *p_IRes_addr << std::dec << std::endl; 
+      }
+      int32_t r = (int32_t) (*p_ORes_addr)&0xFFFF;
       if (r&0x8000) r=r-0x10000;
       res[i][p]=r;
-      std::cout << "FPGAIORegs::readResults: Image=" << i 
-		<< " prob for " << p << " =" << res[i][p] << std::endl; 
+      if (m_debug>1) {
+	std::cout << "FPGAIORegs::readResults: Image=" << i 
+		  << " prob for " << p << " =" << res[i][p] << std::endl; 
+      }
     }
   }
-
   return true;
 }
 
@@ -275,8 +305,8 @@ FPGAIORegs::openMMapFile() {
   return m_fd;
 }
 
-FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
-  m_mmapFilePath(mmapFilePath), m_divideBy(divideBy)
+FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int debug, int16_t divideBy) :
+  m_debug(debug), m_mmapFilePath(mmapFilePath), m_divideBy(divideBy)
 {
   // map the address space for the IO registers into user space so we can interact with them.
   // we'll actually map in the entire CSR span of the HPS since we want to access various registers within that span
@@ -295,10 +325,12 @@ FPGAIORegs::FPGAIORegs(const std::string& mmapFilePath, int16_t divideBy) :
   p_IImg_addr  = calcRegAddress(IIMG_PIO_BASE);
   p_ORes_addr  = calcRegAddress(ORES_PIO_BASE);
   p_IRes_addr  = calcRegAddress(IRES_PIO_BASE);
-  std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
-	    << p_IParms_addr << " and " << p_IAddr_addr << " in virtual space "
-	    << p_virtual_base << "\n mapped to " 
-	    << m_mmapFilePath << std::dec << std::endl;
+  if (m_debug) {
+    std::cout << "FPGAIORegs::FPGAIORegs addresses " << std::hex
+	      << p_IParms_addr << " and " << p_IAddr_addr << " in virtual space "
+	      << p_virtual_base << "\n mapped to " 
+	      << m_mmapFilePath << std::dec << std::endl;
+  }
 }
 
 

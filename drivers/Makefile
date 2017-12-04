@@ -1,5 +1,5 @@
 #
-TARGETS = test_FPGAIORegs DE10_direct 
+TARGETS = test_FPGAIORegs DE10_direct ian DE_mod
 
 #
 ALT_DEVICE_FAMILY ?= soc_cv_av
@@ -9,7 +9,7 @@ HWLIBS_ROOT = $(SOCEDS_ROOT)/ip/altera/hps/altera_hps/hwlib
 #CROSS_COMPILE = arm-linux-gnueabihf-
 #CROSS_COMPILE = arm-angstrom-linux-gnueabi-
 CFLAGS = -g -Wall -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/
-#ON_DE10 = -DONDE10
+ON_DE10 = -DONDE10
 CXXFLAGS = -std=c++11 -g -Wall $(ON_DE10) -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/ -I ../mnist/include
 LDFLAGS =  -g -Wall 
 CC = $(CROSS_COMPILE)gcc
@@ -18,7 +18,12 @@ ARCH= arm
 
 build: $(TARGETS)
 
+ian: ian.o
+
 DE10_direct: DE10_direct.o FPGAIORegs.o TrainedLayers.o
+	$(CXX) $(LDFLAGS)   $^ -o $@  
+
+DE_mod: DE_mod.o FPGAIORegs.o TrainedLayers.o
 	$(CXX) $(LDFLAGS)   $^ -o $@  
 
 test_FPGAIORegs: test_FPGAIORegs.o FPGAIORegs.o TrainedLayers.o
