@@ -1,4 +1,3 @@
-from pprint import pprint
 import numpy as np
 import time
 
@@ -14,12 +13,12 @@ from matplotlib.widgets import Button
 from keras.datasets import mnist
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
+
 (nx,ny)=(10,10)
 colors=['Greens', 'Reds']
-resultsFPGA= np.random.randint(2, size=len(y_test))
-resultsGPU= np.random.randint(2, size=len(y_test))
-#plt.ion()
 
+
+### INITIALIZATION FUNCTIONS ###
 def fillCharGrid(fig, gs):
     axs=[]
     (nx,ny) = gs.get_geometry()
@@ -29,159 +28,327 @@ def fillCharGrid(fig, gs):
         axs += [ax]
     return axs
 
-#plt.subplots_adjust(bottom=0.2)
-
 def plot_mnist(splt, label, pixels):
-    plot_mnist_digit(splt, pixels)
+    return plot_mnist_digit(splt, pixels)
 
-def color_mnist(splt, result, pixels):
-    plot_mnist_digit(splt, pixels, colors[result])
+def plot_digits(axs):
+    images = [plot_mnist(axs[i/nx/ny], y_test[i], x_test[i]) for i in range(0,len(y_test),len(y_test)/nx/ny)]
+    plt.draw()  
+    return images
 
+### HELPER METHODS ###
 def plot_mnist_digit(splt, pixels, col='gray'):
     splt.axes.get_xaxis().set_visible(False)
     splt.axes.get_yaxis().set_visible(False)
-    splt.imshow(pixels, cmap=col, animated=True)
+    return splt.imshow(pixels, cmap=col, animated=True)
 
+def refreshPlot(fig):
+    #fig.canvas.draw_idle()
+    fig.canvas.flush_events()
 
+def hardRefresh(fig):
+    fig.canvas.draw_idle()
+    fig.canvas.flush_events()
+ 
 
+def compare_array(truth, arr):
+    if truth == arr.index(max(arr)):
+        return True
+    else:
+        return False
 
-f = plt.figure(figsize=(8, 8))
-#"Mother Grid spec with enough room for two mnist chars display side by side, plus 1 row below for summary plots
-gsMother = gridspec.GridSpec(3, 1, height_ratios=[4,3,1])
-#one row with two columns for chars displays
-gsChars = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[0])
-# the two nx*ny grids for the char displays
-gsFPGA = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[0])
-#add character displays
-axsFPGA = fillCharGrid(f, gsFPGA)
-gsGPU = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[1])
-axsGPU = fillCharGrid(f, gsGPU)
-#one row for summary plots
-gsSumm = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[1])
-axAcc = plt.Subplot(f,gsSumm[0])
-axAcc.set_xlabel("Fraction")
-f.add_subplot(axAcc)
-axExe = plt.Subplot(f,gsSumm[1])
-axExe.set_xlabel("Secs/100 digits")
-f.add_subplot(axExe)
-#one row for the two buttons
-#gsButtons = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[2])
-#
-
-
-
-
-
-
-#add buttons, fill plots in callbacks
+def color_mnist_digit(digit, ax, color):
+    digit.set_cmap(color)
+    ax.draw_artist(ax.patch)
+    ax.draw_artist(digit)
+    f.canvas.blit(ax.bbox)
 
 class Index(object):
-    indFPGA = 0
-    indGPU = 0
-    exeFPGA = [0.]
-    exeGPU = [0.]
-    once = True
-    
-    def updateChars(self, axs, ind, results, nImages):
-        #simulate the reading of results from board
-        from random import randint
-        istop=0
-        istart = ind
-        ind += randint(0,1000)
-        istop = ind
-        ids = [i for i in range(istart, istop) if (i%100 == 0)]
-        if (istop < nImages):
-            color_digits(axs, ids, results)
-        return istop;
-    
-    def updateExe(self, ax):
+
+    def __init__(self, fpga_imgs, gpu_imgs, ocl_imgs, axsFPGA, axsGPU, axsOCL):
+        self.fpga_imgs = fpga_imgs
+        self.gpu_imgs = gpu_imgs
+        self.ocl_imgs = ocl_imgs
+
+        self.axsFPGA = axsFPGA
+        self.axsGPU = axsGPU
+        self.axsOCL = axsOCL
+
+        self.acc_fpga_line = None
+        self.acc_gpu_line = None
+        self.acc_ocl_line = None
+
+        self.exe_fpga_line = None
+        self.exe_gpu_line = None
+        self.exe_ocl_line = None
+
+        self.fpga_correct = []
+        self.gpu_correct = []
+        self.ocl_correct = []
+
+        self.fpga_exetot = []
+        self.gpu_exetot = []
+        self.ocl_exetot = []
+
+
+    def initExe(self, ax):
+        ax.cla()
+        #ax.set_xlim([0, 3])
+        #ax.set_ylim([0, 3])
+        ax.set_xlabel("Seconds/100 digits")
         ax.title.set_text("Execution Time")
         fpatch = mpatches.Patch(color='blue', label='FPGA')
         gpatch = mpatches.Patch(color='yellow', label='GPU')
-        ax.legend(handles=[fpatch,gpatch])
-        if (self.indFPGA * self.indGPU):
-            #just making something up for exec time/digit
-            print self.indFPGA - self.exeFPGA[-1]
-            self.exeFPGA += [600.0/(self.indFPGA - self.exeFPGA[-1])]
-            self.exeGPU += [200.0/(self.indGPU - self.exeGPU[-1])]
-            print "exeFPGA= ", self.exeFPGA[-1], " exeGPU= ", self.exeGPU[-1]
-            bins = np.linspace(0.,0.6, 30)
-            ax.hist(self.exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
-            ax.hist(self.exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
-            plt.draw()
+        rpatch = mpatches.Patch(color='red', label="OCL")
+        ax.legend(handles=[fpatch,gpatch, rpatch])
 
-    def updateAcc(self, ax):
+
+    def updateExe(self, ax, exeFPGA, exeGPU, exeOCL):
+        bins = np.linspace(0.,0.6, 30)
+        ax.hist(exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
+        ax.hist(exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
+        ax.hist(exeOCL, bins, alpha=0.5, color="red", label="OCL")
+        plt.draw()
+
+    def init_exe(self, ax):
+        ax.cla()
+        ax.set_xlim([0,10000])
+        ax.set_ylim([0, 4])
+        ax.set_xlabel("Predictions done")
+        ax.set_ylabel("Time elapsed (miliseconds)")
+        ax.title.set_text("Execution Time")
+        self.exe_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
+        self.exe_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
+        self.exe_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
+        ax.legend()
+
+    def update_exe(self, i):
+        axExe.draw_artist(axExe.patch)
+
+        #print "fpga exetot"
+        #print self.fpga_exetot
+        #print range(0, i+1, 100)
+
+        self.exe_fpga_line.set_ydata(self.fpga_exetot)
+        self.exe_fpga_line.set_xdata(range(0, i+1, 100))
+        axExe.draw_artist(self.exe_fpga_line)
+
+        self.exe_gpu_line.set_ydata(self.gpu_exetot)
+        self.exe_gpu_line.set_xdata(range(0, i+1, 100))
+        axExe.draw_artist(self.exe_gpu_line)
+
+        self.exe_ocl_line.set_ydata(self.ocl_exetot)
+        self.exe_ocl_line.set_xdata(range(0, i+1, 100))
+        axExe.draw_artist(self.exe_ocl_line)
+    
+        f.canvas.blit(axExe.bbox)
+
+
+    def initAcc(self, ax):
+        ax.cla()
+        ax.set_xlim([0, 1])
+        ax.set_ylim([-1, 3])
+        ax.set_xlabel("Fraction")
         ax.title.set_text("Classification Accuracy")
         plt.sca(ax)
-        ind=np.arange(2)
-        plt.yticks(ind, ['FPGA', 'GPU'])
+        plt.yticks(np.arange(3), ['FPGA', 'GPU', 'OCL'])
         gpatch = mpatches.Patch(color='Green', label='Right')
         rpatch = mpatches.Patch(color='Red', label='Wrong')
         ax.legend(handles=[gpatch,rpatch])
-        if (self.indFPGA * self.indGPU):
-            accFPGA = float(np.count_nonzero(resultsFPGA[:self.indFPGA]))/self.indFPGA
-            accGPU = float(np.count_nonzero(resultsGPU[:self.indGPU]))/self.indGPU
-            print "accFPGA= ", accFPGA, " accGPU= ", accGPU
-            acc= np.array([accFPGA, accGPU])
-            ax.barh(ind, acc, color="Green", label="Correct")
-            ax.barh(ind, np.array([1,1])-acc, left=acc, color="Red")
-            plt.draw()
 
+    def updateAcc(self, ax, fpga_acc, gpu_acc, ocl_acc):
+        ind=np.arange(3)
+        acc= np.array([fpga_acc, gpu_acc, ocl_acc])
+        ax.barh(ind, acc, color="Green", label="Correct")
+        ax.barh(ind, np.array([1,1,1])-acc, left=acc, color="Red")
+        plt.draw()
+
+    def init_acc(self, ax):
+        ax.cla()
+        ax.set_xlim([0,10000])
+        ax.set_ylim([0, 1])
+        ax.set_xlabel("Predictions done")
+        ax.set_ylabel("Percent Correct")
+        ax.title.set_text("Classification Accuracy")
+        self.acc_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
+        self.acc_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
+        self.acc_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
+        ax.legend()
+
+    def update_acc(self, i):
+        axAcc.draw_artist(axAcc.patch)
+
+        #print(self.fpga_correct)
+        #print(range(0, i*100+1, 100))
+        self.acc_fpga_line.set_ydata(self.fpga_correct)
+        self.acc_fpga_line.set_xdata(range(0, i+1, 100))
+        axAcc.draw_artist(self.acc_fpga_line)
+
+        self.acc_gpu_line.set_ydata(self.gpu_correct)
+        self.acc_gpu_line.set_xdata(range(0, i+1, 100))
+        axAcc.draw_artist(self.acc_gpu_line)
+
+        self.acc_ocl_line.set_ydata(self.ocl_correct)
+        self.acc_ocl_line.set_xdata(range(0, i+1, 100))
+        axAcc.draw_artist(self.acc_ocl_line)
     
+        f.canvas.blit(axAcc.bbox)
+
+
     def start(self, event):
-        nImages=len(y_test)
-        while (self.indFPGA < nImages or self.indGPU < nImages):
-            self.updateAcc(axAcc)
-            self.updateExe(axExe)
-            self.indFPGA=self.updateChars(axsFPGA, self.indFPGA, resultsFPGA, nImages)
-            self.indGPU=self.updateChars(axsGPU, self.indGPU, resultsGPU, nImages)
-            if self.once: self.once=False
+        if len(self.fpga_exetot) != 0:
+            self.restart(event)
+
+        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/fpga_output.txt") as fpga:
+            flst = [map(float, line.rstrip().split()) for line in fpga.readlines()]
+        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/gpu_output.txt") as gpu:
+            glst = [map(float, line.rstrip().split()) for line in gpu.readlines()]
+        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/ocl_output.txt") as ocl:
+            olst = [map(float, line.rstrip().split()) for line in ocl.readlines()]
+
+        fpga_correct = 0
+        gpu_correct = 0
+        ocl_correct = 0
+        gpu_exectime = []
+        fpga_exectime = []
+        ocl_exectime = []
+
+        self.init_acc(axAcc)
+        self.init_exe(axExe)
+        hardRefresh(f)
+
+        for idx in range(0, 10000):
+
+            print "idx", idx
+            gpu_exectime.append(float(glst[idx][-1]))
+            fpga_exectime.append(float(flst[idx][-1]))
+            ocl_exectime.append(float(olst[idx][-1]))
+            if idx%100 == 0:
+                if compare_array(y_test[idx], glst[idx][0:9]):
+                    #plot_mnist_digit(self.axsGPU[idx/nx/ny], x_test[idx], 'Greens')
+                    color_mnist_digit(self.gpu_imgs[idx/nx/ny], self.axsGPU[idx/nx/ny], 'Greens')
+                    gpu_correct += 1
+                else:
+                    #plot_mnist_digit(self.axsGPU[idx/nx/ny], x_test[idx], 'Reds')
+                    color_mnist_digit(self.gpu_imgs[idx/nx/ny], self.axsGPU[idx/nx/ny], 'Reds')
+
+                if compare_array(y_test[idx], flst[idx][0:9]):
+                    #plot_mnist_digit(self.axsFPGA[idx/nx/ny], x_test[idx], 'Greens')
+                    color_mnist_digit(self.fpga_imgs[idx/nx/ny], self.axsFPGA[idx/nx/ny], 'Greens')
+                    fpga_correct += 1
+                else:
+                    #plot_mnist_digit(self.axsFPGA[idx/nx/ny], x_test[idx], 'Reds')
+                    color_mnist_digit(self.fpga_imgs[idx/nx/ny], self.axsFPGA[idx/nx/ny], 'Reds')
+
+                if compare_array(y_test[idx], olst[idx][0:9]):
+                    #plot_mnist_digit(self.axsOCL[idx/nx/ny], x_test[idx], 'Greens')
+                    color_mnist_digit(self.ocl_imgs[idx/nx/ny], self.axsOCL[idx/nx/ny], 'Greens')
+                    ocl_correct += 1
+                else:
+                    #plot_mnist_digit(self.axsOCL[idx/nx/ny], x_test[idx], 'Reds')
+                    color_mnist_digit(self.ocl_imgs[idx/nx/ny], self.axsOCL[idx/nx/ny], 'Reds')
+
+                #plt.draw()
+                #update accuracy, #correct
+                #plt.pause(0.001)
+                #refreshPlot(f)
+                self.fpga_correct.append(float(fpga_correct)/float((idx+1)))
+                self.gpu_correct.append(float(gpu_correct)/float((idx+1)))
+                self.ocl_correct.append(float(ocl_correct)/float((idx+1)))
+
+                self.fpga_exetot.append(sum(fpga_exectime)/1000)
+                self.gpu_exetot.append(sum(gpu_exectime))
+                self.ocl_exetot.append(sum(ocl_exectime)/1000)
+
+                self.update_acc(idx)
+                self.update_exe(idx)
+                refreshPlot(f)
+            else:
+                if compare_array(y_test[idx], glst[idx][0:9]):
+                    gpu_correct += 1
+                if compare_array(y_test[idx], flst[idx][0:9]):
+                    fpga_correct += 1
+                if compare_array(y_test[idx], olst[idx][0:9]):
+                    ocl_correct += 1
+        
+
+        self.initAcc(axAcc)
+        self.initExe(axExe)
+
+        print "fpga correct:", fpga_correct
+        print "gpu correct:", gpu_correct
+        print "ocl correct:", ocl_correct
+        self.updateAcc(axAcc, float(fpga_correct)/float((idx+1)), float(gpu_correct)/float((idx+1)), float(ocl_correct)/float(idx+1))
+        self.updateExe(axExe, fpga_exectime, gpu_exectime, ocl_exectime)
+
+        hardRefresh(f)
             
         print "done. Please restart"            
-        from threading import Thread
 
     def restart(self, event):
-        self.indFPGA=0
-        self.indGPU=0
-        plot_digits(axsFPGA)
-        plot_digits(axsGPU)
-    
-def refreshPlot(fig):
-    fig.canvas.draw()
-    fig.canvas.flush_events()
+        self.fpga_imgs = plot_digits(axsFPGA)
+        self.gpu_imgs = plot_digits(axsGPU)
+        self.ocl_imgs = plot_digits(axsOCL)
 
-def plot_digits(axs):
-    for i in range(0,len(y_test),len(y_test)/nx/ny):        
-        plot_mnist(axs[i/nx/ny], y_test[i], x_test[i])
-    plt.draw()    
+        self.acc_fpga_line = None
+        self.acc_gpu_line = None
+        self.acc_ocl_line = None
 
-def color_digits(axs, ids, results):
-#    mutex.acquire()
-#    try:
-    for i in ids:
-        color_mnist(axs[i/nx/ny], results[i], x_test[i])
-    plt.draw()    
-    refreshPlot(f)
-#    finally:
-#        mutex.release()
+        self.exe_fpga_line = None
+        self.exe_gpu_line = None
+        self.exe_ocl_line = None
+
+        self.fpga_correct = []
+        self.gpu_correct = []
+        self.ocl_correct = []
+
+        self.fpga_exetot = []
+        self.gpu_exetot = []
+        self.ocl_exetot = []    
 
 
-#axstop = plt.Subplot(f, gsButtons[0])
-#f.add_subplot(axstop)
-#axstart = plt.Subplot(f, gsButtons[1])
-#f.add_subplot(axstart)
+### CREATE AXES ###
+f = plt.figure(figsize=(12, 8))
+#"Mother Grid spec with enough room for two mnist chars display side by side, plus 1 row below for summary plots
+gsMother = gridspec.GridSpec(3, 1, height_ratios=[4,3,1])
+#one row with two columns for chars displays
+gsChars = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gsMother[0])
+# the two nx*ny grids for the char displays
+gsFPGA = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[0])
+axsFPGA = fillCharGrid(f, gsFPGA)
+#axsFPGA.title.set_text("FPGA")
+#gsFPGA.update(top="FPGA")
+
+gsGPU = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[1])
+axsGPU = fillCharGrid(f, gsGPU)
+#axsGPU.title.set_text("GPU")
+
+
+gsOCL = gridspec.GridSpecFromSubplotSpec(nx, ny, subplot_spec=gsChars[2])
+axsOCL = fillCharGrid(f, gsOCL)
+#axsOCL.title.set_text("OCL")
+
+#one row for summary plots
+gsSumm = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gsMother[1])
+axAcc = plt.Subplot(f,gsSumm[0])
+#axAcc.set_xlabel("Fraction")
+f.add_subplot(axAcc)
+axExe = plt.Subplot(f,gsSumm[1])
+#axExe.set_xlabel("Secs/100 digits")
+f.add_subplot(axExe)
+
+fpga_imgs = plot_digits(axsFPGA)
+gpu_imgs = plot_digits(axsGPU)
+ocl_imgs = plot_digits(axsOCL)
+
 axstop = plt.axes([0.7, 0.05, 0.1, 0.075])
 axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
-callback = Index()
+
+
+callback = Index(fpga_imgs, gpu_imgs, ocl_imgs, axsFPGA, axsGPU, axsOCL)
 bstart = Button(axstart, 'Start')
 bstart.on_clicked(callback.start)
 bstop = Button(axstop, 'Reset')
 bstop.on_clicked(callback.restart)
 
-plot_digits(axsFPGA)
-plot_digits(axsGPU)
-callback.updateAcc(axAcc)
-callback.updateExe(axExe)
-
-#ani=anim.ArtistAnimation(f,images, interval=50, blit=False, repeat=False)
 plt.show()
