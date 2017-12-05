@@ -26,6 +26,9 @@ public:
   const int16_t* writeParameters(uint16_t layerID, uint16_t group, 
 				 uint16_t moduleNum, 
 				 uint16_t nParameters, const int16_t *data) const; 
+  int writeParameter(int layer, int group, int mod_num,
+		     int address, int data) const;
+
   bool writeCnvLayer(const Layer& layer, uint16_t layerID) const;
   bool writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMod=0) const;
   bool writeImgBatch(const ImageBatch_t& imgs) const;
@@ -33,7 +36,21 @@ public:
   void startImgProc() const;
   void resetImgProc() const;
   int waitOnImgProc() const;
-  bool selectOutput(int i);
+  //when  step = 0 => result_data_stream <= image_data_stream;
+  //when  1 => result_data_stream <= first_layer_convolution_streams_out(0);
+  //when  2 => result_data_stream <= first_layer_bias_and_relu_streams_out(0);
+  //when  3 => result_data_stream <= first_layer_max_pooling_streams_out(0);
+  //when  4 => result_data_stream <= second_layer_convolution_streams_out(0);
+  //when  5 => result_data_stream <= second_layer_add_matrices_out(0);
+  //when  6 => result_data_stream <= second_layer_bias_and_relu_streams_out(0);
+  //when  7 => result_data_stream <= second_layer_max_pooling_streams_out(0);
+  //when  8 => result_data_stream <= dense1_layer_mult_data_stream_out;
+  //when  9 => result_data_stream <= dense1_layer_bias_and_relu_streams_out;
+  //when 10 => result_data_stream <= dense2_layer_mult_data_stream_out;
+  //when 11 => result_data_stream <= dense2_layer_bias_and_relu_streams_out;
+  //when 12 => result_data_stream <= dense3_layer_mult_data_stream_out;
+  //when 13 => result_data_stream <= dense3_layer_bias_and_relu_streams_out;
+  bool selectOutput(int step=13);
 
   
 private:

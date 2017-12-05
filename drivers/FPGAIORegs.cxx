@@ -36,9 +36,9 @@ const uint32_t IRES_PIO_BASE  =0x3500;
 const uint32_t HW_REGS_BASE ( ALT_STM_OFST );
 const uint32_t HW_REGS_MASK ( HW_REGS_SPAN - 1 );
 
-const uint32_t STARTMASK=1<<30;
+const uint32_t RUNNINGMASK=1<<30;
 const uint32_t RESETMASK=1<<31;
-const uint32_t WRITTENMASK=1<<31;
+const uint32_t DONEMASK=1<<31;
 
 const uint16_t WEIGHTGRP=0;
 const uint16_t BIASGRP=1;
@@ -62,21 +62,22 @@ void
 FPGAIORegs::startImgProc() const {
   cout << "FPGAIORegs::startImgProc" <<endl;
   this->resetImgProc();
-  *p_IImg_addr = 0;         //start
-  *p_IImg_addr = STARTMASK; //start
+  *p_IImg_addr = 0;           //preset 
+  *p_IImg_addr = RUNNINGMASK; //flip running bit
   usleep(1);
-  *p_IImg_addr = 0;         //clear start
+  *p_IImg_addr = 0;         //clear running
 }
 
 int
 FPGAIORegs::waitOnImgProc() const {
   cout << "FPGAIORegs::waitOnImgProc" <<endl;
   int i(0);
-  while (0 != (*p_ORes_addr & STARTMASK)) {
+  while (0 != (*p_ORes_addr & RUNNINGMASK)) {
     //    cout << "i=" << i << hex << " " << *p_ORes_addr << " " << STARTMASK << endl;
     usleep(1);
     ++i;
   }
+  //  assert(0 != (*p_ORes_addr & DONEMASK) );
   return i;
 }
   
@@ -91,12 +92,12 @@ const uint16_t*
 FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const { 
   for (uint16_t i=0; i<nData; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
-    //here WRITTENMASK is bit 30 not 32
-    if (i<10) {
-      *p_IImg_addr = (1<<29) | (i<<16) | i ; 
-    } else {
-      *p_IImg_addr = (1<<29) | (i<<16) | (data[i] &0xFFFF); 
-    }
+    uint16_t datum = (data[i] &0xFFFF);
+    //here DONEMASK is bit 30 not 32
+    *p_IImg_addr = (0<<29) | (i<<16) | datum; 
+    *p_IImg_addr = (1<<29) | (i<<16) | datum; 
+    *p_IImg_addr = (0<<29) | (i<<16) | datum; 
+  
     if (0 != data[i]) {
     //    if (0 != data[i] && i<10) {
       if (m_debug>2) {
@@ -109,39 +110,46 @@ FPGAIORegs::writeData(uint16_t nData, const uint16_t *data) const {
   }
   return data + (nData * sizeof(uint16_t));
 }
+
+int 
+FPGAIORegs::writeParameter(int layer, int group, int mod_num,
+			   int address, int data) const {
+  //  if(data<0) data-=0x10000;
+  *p_IAddr_addr = ((address&0xffff)<<16) | (data&0xffff);
+  *p_IParms_addr = (0<<31) | ((layer&0xff)<<16) | ((group&0xff)<<8) | (mod_num&0xff);
+  *p_IParms_addr = (1<<31) | ((layer&0xff)<<16) | ((group&0xff)<<8) | (mod_num&0xff);
+  if (m_debug>1) {
+    std::cout << std::hex 
+	      << "FPGAIORegs::writeParameters IAddr 0x" << address 
+	      << std::dec
+	      << " data=" << data 
+	      << std::hex
+	      << " data 0x" << data 
+	      << " 0x" << *p_IAddr_addr << std::dec << std::endl;
+  }
+  *p_IParms_addr = (0<<31) | ((layer&0xff)<<16) | ((group&0xff)<<8) | (mod_num&0xff);
+  *p_IAddr_addr = 0;
+
+  return 1;
+}
+
 const int16_t*  
 FPGAIORegs::writeParameters(uint16_t layerID, uint16_t group, uint16_t moduleNum,
 			    uint16_t nParameters, const int16_t *data) const { 
   assert(layerID <= 0xFFFF);
   assert(group <= 0xFF);
   assert(moduleNum <= 0xFF);
-  *p_IParms_addr = ((WRITTENMASK) | (layerID<<16) | (group<<8) | moduleNum);
-  std::cout << std::hex 
+  if (m_debug)  std::cout << std::hex 
 	    << "FPGAIORegs::writeParameters IParms layer 0x" << layerID 
 	    << " group 0x" << group << " mod 0x" << moduleNum 
-	    << " outpus it 0x" << *p_IParms_addr << std::dec << std::endl;
+	    << std::dec << std::endl;
   for (uint16_t i=0; i<nParameters; ++i){
     //notice we have to cast data[i] to unsigned to avoid messing up the whole word
-    *p_IAddr_addr = (WRITTENMASK) | (i<<16) | (uint16_t)data[i]; 
-    if (m_debug>1) {
-      std::cout << std::hex 
-		<< "FPGAIORegs::writeParameters IAddr 0x" << i 
-		<< std::dec
-		<< " data=" << data[i] 
-		<< std::hex
-		<< " data 0x" << data[i] 
-		<< " 0x" << *p_IAddr_addr << std::dec << std::endl;
-    }
+    this->writeParameter(layerID, group, moduleNum, i, data[i]); 
   }
-  
-  //write "divide by" for all weight layers
-  if (group == WEIGHTGRP) {
-    if (m_debug>0) std::cout << "FPGAIORegs::writeParameters: layerID " << layerID << " divide by " << m_divideBy << std::endl;
-    
-    *p_IAddr_addr = (WRITTENMASK) |  ((1+nParameters)<<16) | m_divideBy;
-    
-    *p_IParms_addr=0;
-  }
+      
+  *p_IParms_addr=0;
+
   return data + nParameters;
 }
 
@@ -167,13 +175,16 @@ FPGAIORegs::writeFCLayer(const Layer& layer, uint16_t layerID, size_t nRowsPerMo
 		<< pData << " first weight "  << *pData << std::endl;
     }
     //write nwMod weights for this module
-    pData = this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
+    pData = this->writeParameters(layerID, 0, 0, nWMod, pData);
   }
 
+  this->writeParameter(layerID, 1, 0, 0, m_divideBy);
 
   //write biases for nFilters at modID 0xFF
-  if (m_debug>0) std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
-  this->writeParameters(layerID, BIASGRP, 0xFF, 
+  if (m_debug>0) {
+    std::cout << "FPGAIORegs::writeFCLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
+  }
+  this->writeParameters(layerID, 2, 0, 
 			layer.nBiases, layer.biases.data());
 
   return true;
@@ -189,14 +200,14 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
   size_t nFilters(layer.weightShape[3]);
   assert(nFilters-1<=0xFF);
   std::vector<int16_t> test =
-    { 1, 0, 0, 0, 0,
-      1, 0, 0, 0, 0,
-      1, 0, 0, 0, 0,
-      1, 0, 0, 0, 0,
-      1, 0, 0, 0, 0 };
+    { 1, 1, 1, 1, 1,
+      1, 1, 0, 0, 0,
+      1, 0, 1, 0, 0,
+      1, 0, 0, 1, 0,
+      1, 0, 0, 0, 1 };
       
-  const int16_t *pData(test.data());
-  //FIMXE const int16_t *pData(layer.weights.data());
+  //TEST const int16_t *pData(test.data());
+  const int16_t *pData(layer.weights.data());
   assert(pData);
 
   //module loop: one module per input and per output channel
@@ -212,32 +223,39 @@ FPGAIORegs::writeCnvLayer(const Layer& layer, uint16_t layerID) const {
       }
       //write nwMod Conv weights for this module
       pData=this->writeParameters(layerID, WEIGHTGRP, modID, nWMod, pData);
+      //add divide by as additional parameter
+      if (m_debug>1) {
+	std::cout << "FPGAIORegs::writeCnvLayer: layerID " << layerID 
+		  << " modID " << modID << " divide by " << m_divideBy << std::endl;
+      }
+      this->writeParameter(layerID, 0, modID, nFilters*nChannels, 
+			   m_divideBy);
+      //in the future
+      //elem 25 is bias
+      //26 is divide by
     }
-  }
     
-  //write biases for nFilters at modID 0xFFFF
-  if (m_debug) std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
-  
-  //FIXME  this->writeParameters(layerID, BIASGRP, 0, 
-  //			layer.nBiases, layer.biases.data());
-  std::vector<int16_t> test2;
-  for (size_t i=0; i<layer.nBiases; ++i) test2.push_back(0);
-  this->writeParameters(layerID, BIASGRP, 0, 
-			layer.nBiases, test2.data());
+  } //nFilters
 
+  //write biases for nFilters
+  if (m_debug) {
+    std::cout << "FPGAIORegs::writeCnvLayer: " << layer.name <<  " layerID " << layerID << " biases " << *(layer.biases.data()) << std::endl;
+  }
+  // TEST std::vector<int16_t> test2;
+  // for (size_t i=0; i<layer.nBiases; ++i) test2.push_back(0);
+  
+  this->writeParameters(layerID, BIASGRP, 0, 
+  			layer.nBiases, layer.biases.data());
+  
   return true;
 }
-//in the future
-//elem 25 is bias
-//26 is divide by
 
 bool
 FPGAIORegs::selectOutput(int i){	//select output
   //  *(uint32_t *) para_wr_addr1 = (1<<31) | (6<<16) | (i&0xff);
+  *p_IParms_addr = (0<<31) | (6<<16) | (i&0xff);
   *p_IParms_addr = (1<<31) | (6<<16) | (i&0xff);
-  *p_IParms_addr = (1<<31) | (6<<16) | (i&0xff);
-  *p_IParms_addr = 0;
-  *p_IAddr_addr = 0;
+  *p_IParms_addr = (0<<31) | (6<<16) | (i&0xff);
   return true;
 }
 
@@ -259,7 +277,7 @@ bool
 FPGAIORegs::readResults(Results_t& res) const {
   for (size_t i=0; i<res.size(); ++i) {
     for (size_t p=0; p<res[i].size(); ++p) {
-      uint32_t addr = (WRITTENMASK) | ((p+i*res[i].size())<<16); 
+      uint32_t addr = (DONEMASK) | ((p+i*res[i].size())<<16); 
       //cout << addr << endl;
       *p_IRes_addr = addr;
       if (m_debug>1) {

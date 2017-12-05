@@ -40,6 +40,7 @@ void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
 int waitOnFPGA(const FPGAIORegs& fpgaIO) {
   cout << "waitOnFPGA starts" <<endl;
   int waitMus = fpgaIO.waitOnImgProc();
+  usleep(1000);
   cout << "waitOnFPGA waited " << waitMus <<"mus" <<endl;
   return waitMus;
 }
@@ -71,9 +72,13 @@ void processResults(const Results_t& res, const LABELS& labels ) {
 
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
+  int selectStep(13);
+  if (argc == 2) {
+    selectStep=atoi(argv[1]);
+  }
 
 #ifdef ONDE10
-  FPGAIORegs fpgaIO("/dev/mem",1);
+  FPGAIORegs fpgaIO("/dev/mem",3,256);
 #else
   FPGAIORegs fpgaIO("/tmp/simde10.bin",3);
 #endif  
@@ -94,7 +99,8 @@ int main(int argc, char* argv[]) {
   std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
 
   fpgaIO.resetImgProc();
-  fpgaIO.selectOutput(1);
+  //fpgaIO.selectOutput(); //read last layer
+  fpgaIO.selectOutput(selectStep);
 
   //Loop over mnist images stride X
   Results_t mnistPred;
@@ -102,7 +108,7 @@ int main(int argc, char* argv[]) {
   unsigned int i(0);
   const int STRIDE(2);
   // while (i<dataset.test_images.size()) {
-  while (i<40) {
+  while (i<4) {
     ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
     for (int j=0; j<STRIDE; ++j) {
