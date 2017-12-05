@@ -90,12 +90,15 @@ class Index(object):
         self.gpu_exetot = []
         self.ocl_exetot = []
 
+        self.accleg = None
+        self.exeleg = None
+
 
     def initExe(self, ax):
         ax.cla()
         #ax.set_xlim([0, 3])
         #ax.set_ylim([0, 3])
-        ax.set_xlabel("Seconds/100 digits")
+        ax.set_xlabel("Miliseconds per predition")
         ax.title.set_text("Execution Time")
         fpatch = mpatches.Patch(color='blue', label='FPGA')
         gpatch = mpatches.Patch(color='yellow', label='GPU')
@@ -104,7 +107,7 @@ class Index(object):
 
 
     def updateExe(self, ax, exeFPGA, exeGPU, exeOCL):
-        bins = np.linspace(0.,0.6, 30)
+        bins = np.linspace(min(exeFPGA),max(exeOCL), 60)
         ax.hist(exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
         ax.hist(exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
         ax.hist(exeOCL, bins, alpha=0.5, color="red", label="OCL")
@@ -113,21 +116,25 @@ class Index(object):
     def init_exe(self, ax):
         ax.cla()
         ax.set_xlim([0,10000])
-        ax.set_ylim([0, 4])
+        ax.set_ylim([0, 10])
         ax.set_xlabel("Predictions done")
-        ax.set_ylabel("Time elapsed (miliseconds)")
+        ax.set_ylabel("Time elapsed (ms)")
         ax.title.set_text("Execution Time")
         self.exe_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
         self.exe_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
         self.exe_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
-        ax.legend()
+        self.exeleg = ax.legend()
 
     def update_exe(self, i):
         axExe.draw_artist(axExe.patch)
+        axExe.draw_artist(self.exeleg)
 
         #print "fpga exetot"
         #print self.fpga_exetot
         #print range(0, i+1, 100)
+        mx = int(max(self.ocl_exetot)+1.0)
+        axExe.set_ylim([0, mx])
+        axExe.set_yticks(range(0, mx, (mx/6)+1), range(0, mx, (mx/6)+1))
 
         self.exe_fpga_line.set_ydata(self.fpga_exetot)
         self.exe_fpga_line.set_xdata(range(0, i+1, 100))
@@ -173,11 +180,17 @@ class Index(object):
         self.acc_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
         self.acc_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
         self.acc_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
-        ax.legend()
+        self.accleg = ax.legend()
+        #self.accticks = ax.xticks(range(0, 10, 2), range(0, 10, 2))
 
     def update_acc(self, i):
         axAcc.draw_artist(axAcc.patch)
+        axAcc.draw_artist(self.accleg)
 
+        axAcc.set_xlim([0, i])
+        #self.accticks.
+        #axAcc.draw_artist(self.accticks)
+        axAcc.set_xticks(range(0, i, (i/5)+1), range(0, i, (i/5)+1))
         #print(self.fpga_correct)
         #print(range(0, i*100+1, 100))
         self.acc_fpga_line.set_ydata(self.fpga_correct)
@@ -192,7 +205,7 @@ class Index(object):
         self.acc_ocl_line.set_xdata(range(0, i+1, 100))
         axAcc.draw_artist(self.acc_ocl_line)
     
-        f.canvas.blit(axAcc.bbox)
+        f.canvas.blit(axAcc.clipbox)
 
 
     def start(self, event):
@@ -220,9 +233,9 @@ class Index(object):
         for idx in range(0, 10000):
 
             print "idx", idx
-            gpu_exectime.append(float(glst[idx][-1]))
-            fpga_exectime.append(float(flst[idx][-1]))
-            ocl_exectime.append(float(olst[idx][-1]))
+            gpu_exectime.append(float(glst[idx][-1])*1000.0)
+            fpga_exectime.append(float(flst[idx][-1])*1000.0)
+            ocl_exectime.append(float(olst[idx][-1])*1000.0)
             if idx%100 == 0:
                 if compare_array(y_test[idx], glst[idx][0:9]):
                     #plot_mnist_digit(self.axsGPU[idx/nx/ny], x_test[idx], 'Greens')
@@ -256,13 +269,15 @@ class Index(object):
                 self.gpu_correct.append(float(gpu_correct)/float((idx+1)))
                 self.ocl_correct.append(float(ocl_correct)/float((idx+1)))
 
-                self.fpga_exetot.append(sum(fpga_exectime)/1000)
+                self.fpga_exetot.append(sum(fpga_exectime))
                 self.gpu_exetot.append(sum(gpu_exectime))
-                self.ocl_exetot.append(sum(ocl_exectime)/1000)
+                self.ocl_exetot.append(sum(ocl_exectime))
 
                 self.update_acc(idx)
                 self.update_exe(idx)
+                time.sleep(0.1)
                 refreshPlot(f)
+
             else:
                 if compare_array(y_test[idx], glst[idx][0:9]):
                     gpu_correct += 1
@@ -271,7 +286,7 @@ class Index(object):
                 if compare_array(y_test[idx], olst[idx][0:9]):
                     ocl_correct += 1
         
-
+        time.sleep(5)
         self.initAcc(axAcc)
         self.initExe(axExe)
 
@@ -309,6 +324,7 @@ class Index(object):
 
 ### CREATE AXES ###
 f = plt.figure(figsize=(12, 8))
+#f = plt.subplots(figsize=(12,8))
 #"Mother Grid spec with enough room for two mnist chars display side by side, plus 1 row below for summary plots
 gsMother = gridspec.GridSpec(3, 1, height_ratios=[4,3,1])
 #one row with two columns for chars displays
@@ -341,14 +357,34 @@ fpga_imgs = plot_digits(axsFPGA)
 gpu_imgs = plot_digits(axsGPU)
 ocl_imgs = plot_digits(axsOCL)
 
-axstop = plt.axes([0.7, 0.05, 0.1, 0.075])
-axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
+#axstop = plt.axes([0.7, 0.05, 0.1, 0.075])
+#axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
 
 
 callback = Index(fpga_imgs, gpu_imgs, ocl_imgs, axsFPGA, axsGPU, axsOCL)
-bstart = Button(axstart, 'Start')
-bstart.on_clicked(callback.start)
-bstop = Button(axstop, 'Reset')
-bstop.on_clicked(callback.restart)
+# bstart = Button(axstart, 'Start')
+# bstart.on_clicked(callback.start)
+# bstop = Button(axstop, 'Reset')
+# bstop.on_clicked(callback.restart)
 
-plt.show()
+mng = plt.get_current_fig_manager()
+mng.resize(*mng.window.maxsize())
+
+plt.show(block=False)
+#imfig, imax = plt.subplots(num=2)
+
+while True:
+    #plt.sca(gsMother)
+    #plt.show(block=False)
+    #plt.figure(f)
+    hardRefresh(f)
+    callback.start(0)
+    time.sleep(5)
+
+    #plt.figure(imfig)
+    #plt.sca(imax)
+    #lenet = plt.imread("/Users/thomasboser/Documents/NIPS-2017/NIPS2017-demo/nips-cnn-cycles-per-layer.png")
+    #imax.imshow(lenet, extent=[0, 45000, 0, 7500])
+    #hardRefresh(f)
+    #plt.show(block=False)
+    #time.sleep(5)
