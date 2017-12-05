@@ -5,7 +5,7 @@
 #include "TrainedLayers.hpp"
 #include "FPGAIORegs.hpp"
 #define MNIST_DATA_LOCATION "../mnist"
-#define KERAS_PARMS "../flat_weights.txt"
+#define KERAS_PARMS "../flat_weights_discrete.txt"
 
 using namespace std;
 
@@ -37,26 +37,30 @@ void startForwardPass(const ImageBatch_t& imgBatch, const FPGAIORegs& fpgaIO) {
   fpgaIO.startImgProc();
 }
 
-void waitOnFPGA(const FPGAIORegs& fpgaIO) {
+int waitOnFPGA(const FPGAIORegs& fpgaIO) {
   cout << "waitOnFPGA starts" <<endl;
   int waitMus = fpgaIO.waitOnImgProc();
+  usleep(1000);
   cout << "waitOnFPGA waited " << waitMus <<"mus" <<endl;
+  return waitMus;
 }
 
 void readPredictions(Results_t& preds, const FPGAIORegs& fpgaIO) {
   cout << "readPredictions" <<endl;
-  waitOnFPGA(fpgaIO);
+  int waitMus=waitOnFPGA(fpgaIO);
   Results_t batchPred = {Result_t(), Result_t()};
   fpgaIO.readResults(batchPred);
   ///....
   preds.insert(preds.end(), batchPred.begin(), batchPred.end());
 }
 
-void processResults(const Results_t& res) {
+template <class LABELS>
+void processResults(const Results_t& res, const LABELS& labels ) {
   cout << "processResults" << endl;
   int iImg(0);
   for (auto imgRes : res) {
-    std::cout << std::dec << iImg++ << ':';
+    std::cout << std::dec << iImg << ':';
+    std::cout << std::dec << (int)labels[iImg++] << ':';
     for (auto prob : imgRes) std::cout << prob << ' ';
     std::cout << std::endl;
   }
@@ -68,11 +72,15 @@ void processResults(const Results_t& res) {
 
 int main(int argc, char* argv[]) {
   std::cout << "Terasic DE10 MNIST demo driver starting" << std::endl;
+  int selectStep(13);
+  if (argc == 2) {
+    selectStep=atoi(argv[1]);
+  }
 
 #ifdef ONDE10
-  FPGAIORegs fpgaIO("/dev/mem");
+  FPGAIORegs fpgaIO("/dev/mem",3,256);
 #else
-  FPGAIORegs fpgaIO("/tmp/simde10.bin");
+  FPGAIORegs fpgaIO("/tmp/simde10.bin",3);
 #endif  
   
   //Read keras parms, prepare matrices
@@ -91,13 +99,15 @@ int main(int argc, char* argv[]) {
   std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
 
   fpgaIO.resetImgProc();
+  //fpgaIO.selectOutput(); //read last layer
+  fpgaIO.selectOutput(selectStep);
 
   //Loop over mnist images stride X
   Results_t mnistPred;
-  //mnistPred.reserve(nTestImgs);
+  mnistPred.reserve(dataset.test_images.size());
   unsigned int i(0);
   const int STRIDE(2);
-  //FIXME!!!!!!!!!!!!!!!  while (i<nTestImgs) {
+  // while (i<dataset.test_images.size()) {
   while (i<4) {
     ImageBatch_t imgBatch;
     imgBatch.reserve(STRIDE);
@@ -111,7 +121,7 @@ int main(int argc, char* argv[]) {
     startForwardPass(imgBatch, fpgaIO);
     readPredictions(mnistPred, fpgaIO);
   }
-  processResults(mnistPred);
+  processResults(mnistPred, dataset.test_labels);
     
   cout << "Terasic DE10 MNIST demo driver ending" << endl;
   return 0;
