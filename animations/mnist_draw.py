@@ -212,11 +212,11 @@ class Index(object):
         if len(self.fpga_exetot) != 0:
             self.restart(event)
 
-        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/fpga_output.txt") as fpga:
+        with open("fpga_output.txt") as fpga:
             flst = [map(float, line.rstrip().split()) for line in fpga.readlines()]
-        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/gpu_output.txt") as gpu:
+        with open("gpu_output.txt") as gpu:
             glst = [map(float, line.rstrip().split()) for line in gpu.readlines()]
-        with open("/Users/thomasboser/Documents/NIPS-2017/animation_infiles/ocl_output.txt") as ocl:
+        with open("ocl_output.txt") as ocl:
             olst = [map(float, line.rstrip().split()) for line in ocl.readlines()]
 
         fpga_correct = 0
@@ -357,12 +357,17 @@ fpga_imgs = plot_digits(axsFPGA)
 gpu_imgs = plot_digits(axsGPU)
 ocl_imgs = plot_digits(axsOCL)
 
-#axstop = plt.axes([0.7, 0.05, 0.1, 0.075])
-#axstart = plt.axes([0.81, 0.05, 0.1, 0.075])
+aFPGA = plt.axes([0.2, 0.95, 0.1, 0.05])
+aOCL = plt.axes([0.475, 0.95, 0.1, 0.05])
+aGPU = plt.axes([0.75, 0.95, 0.1, 0.05])
+
+
+bGPU = Button(aGPU, 'Keras GPU')
+bOCL = Button(aOCL, 'OpenCL FPGA')
+bFPGA = Button(aFPGA, 'VHDL FPGA')
 
 
 callback = Index(fpga_imgs, gpu_imgs, ocl_imgs, axsFPGA, axsGPU, axsOCL)
-# bstart = Button(axstart, 'Start')
 # bstart.on_clicked(callback.start)
 # bstop = Button(axstop, 'Reset')
 # bstop.on_clicked(callback.restart)
@@ -374,17 +379,16 @@ plt.show(block=False)
 #imfig, imax = plt.subplots(num=2)
 
 while True:
+#    imfig=plt.figure(2)
+#    img=plt.imread("HEPTrkX One Slide.jpg")
+#    plt.imshow(img, extent=[0, 45000, 0, 7500])
+#    hardRefresh(imfig)
+#    plt.show(block=False)
+#    time.sleep(5)
     #plt.sca(gsMother)
-    #plt.show(block=False)
-    #plt.figure(f)
+    plt.show(block=False)
+    f=plt.figure(1)
     hardRefresh(f)
     callback.start(0)
     time.sleep(5)
 
-    #plt.figure(imfig)
-    #plt.sca(imax)
-    #lenet = plt.imread("/Users/thomasboser/Documents/NIPS-2017/NIPS2017-demo/nips-cnn-cycles-per-layer.png")
-    #imax.imshow(lenet, extent=[0, 45000, 0, 7500])
-    #hardRefresh(f)
-    #plt.show(block=False)
-    #time.sleep(5)
