@@ -99,8 +99,8 @@ class Index(object):
     def initExe(self, ax):
         ax.cla()
         #ax.set_xlim([0, 3])
-        #ax.set_ylim([0, 3])
-        ax.set_xlabel("Miliseconds per predition")
+        #ax.set_ylim([0 3])
+        ax.set_xlabel("log10(Miliseconds per predition)")
         ax.title.set_text("Execution Time")
         fpatch = mpatches.Patch(color='blue', label='FPGA')
         gpatch = mpatches.Patch(color='yellow', label='GPU')
@@ -109,6 +109,9 @@ class Index(object):
 
 
     def updateExe(self, ax, exeFPGA, exeGPU, exeOCL):
+        exeFPGA = np.log10(exeFPGA)
+        exeGPU = np.log10(exeGPU)
+        exeOCL = np.log10(exeOCL)
         bins = np.linspace(min(exeFPGA),max(exeOCL), 60)
         ax.hist(exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
         ax.hist(exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
