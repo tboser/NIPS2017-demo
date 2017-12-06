@@ -93,6 +93,8 @@ class Index(object):
         self.accleg = None
         self.exeleg = None
 
+        self.exe_yticks = None
+
 
     def initExe(self, ax):
         ax.cla()
@@ -102,7 +104,7 @@ class Index(object):
         ax.title.set_text("Execution Time")
         fpatch = mpatches.Patch(color='blue', label='FPGA')
         gpatch = mpatches.Patch(color='yellow', label='GPU')
-        rpatch = mpatches.Patch(color='red', label="OCL")
+        rpatch = mpatches.Patch(color='red', label="OpenCL")
         ax.legend(handles=[fpatch,gpatch, rpatch])
 
 
@@ -110,31 +112,41 @@ class Index(object):
         bins = np.linspace(min(exeFPGA),max(exeOCL), 60)
         ax.hist(exeFPGA, bins, alpha=0.5, color="blue", label="FPGA")
         ax.hist(exeGPU, bins, alpha=0.5, color="yellow", label="GPU")
-        ax.hist(exeOCL, bins, alpha=0.5, color="red", label="OCL")
+        ax.hist(exeOCL, bins, alpha=0.5, color="red", label="OpenCL")
         plt.draw()
 
     def init_exe(self, ax):
         ax.cla()
         ax.set_xlim([0,10000])
-        ax.set_ylim([0, 10])
+        ax.set_ylim([0, 45000])
         ax.set_xlabel("Predictions done")
         ax.set_ylabel("Time elapsed (ms)")
         ax.title.set_text("Execution Time")
-        self.exe_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
-        self.exe_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
-        self.exe_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
+        self.exe_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.3, linewidth=0.3, linestyle="-", label="FPGA")
+        self.exe_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.3, linewidth=0.3, linestyle="-", label="GPU")
+        self.exe_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.3, linewidth=0.3, linestyle="-", label="OpenCL")
         self.exeleg = ax.legend()
+
+        plt.sca(ax)
+        #self.exe_yticks = ax.yticks(range(0, 10, 2), range(0, 10, 2))
 
     def update_exe(self, i):
         axExe.draw_artist(axExe.patch)
         axExe.draw_artist(self.exeleg)
 
+        mx = int(max(self.ocl_exetot)+1.0)
+
+        #self.exeloc = range(0, mx, (mx/6)+1)
+        #self.exelab = range(0, mx, (mx/6)+1)
+        #axExe.draw_artist(self.exeloc)
+        #axExe.draw_artist(self.exelab)
+        #self.exe_yticks.update(range(0, mx, (mx/6)+1), range(0, mx, (mx/6)+1))
+        #axExe.draw_artist(self.exe_yticks)
+
         #print "fpga exetot"
         #print self.fpga_exetot
         #print range(0, i+1, 100)
-        mx = int(max(self.ocl_exetot)+1.0)
-        axExe.set_ylim([0, mx])
-        axExe.set_yticks(range(0, mx, (mx/6)+1), range(0, mx, (mx/6)+1))
+        #axExe.set_ylim([0, mx])
 
         self.exe_fpga_line.set_ydata(self.fpga_exetot)
         self.exe_fpga_line.set_xdata(range(0, i+1, 100))
@@ -158,7 +170,7 @@ class Index(object):
         ax.set_xlabel("Fraction")
         ax.title.set_text("Classification Accuracy")
         plt.sca(ax)
-        plt.yticks(np.arange(3), ['FPGA', 'GPU', 'OCL'])
+        plt.yticks(np.arange(3), ['FPGA', 'GPU', 'OpenCL'])
         gpatch = mpatches.Patch(color='Green', label='Right')
         rpatch = mpatches.Patch(color='Red', label='Wrong')
         ax.legend(handles=[gpatch,rpatch])
@@ -173,13 +185,13 @@ class Index(object):
     def init_acc(self, ax):
         ax.cla()
         ax.set_xlim([0,10000])
-        ax.set_ylim([0, 1])
+        ax.set_ylim([0, 1.1])
         ax.set_xlabel("Predictions done")
         ax.set_ylabel("Percent Correct")
         ax.title.set_text("Classification Accuracy")
-        self.acc_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.5, linewidth=1, linestyle="-", label="FPGA")
-        self.acc_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.5, linewidth=1, linestyle="-", label="GPU")
-        self.acc_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.5, linewidth=1, linestyle="-", label="OCL")
+        self.acc_fpga_line, = ax.plot([0], '-o', color="blue", alpha=0.3, linewidth=0.3, linestyle="-", label="FPGA")
+        self.acc_gpu_line, = ax.plot([0], '-o', color="yellow", alpha=0.3, linewidth=0.3, linestyle="-", label="GPU")
+        self.acc_ocl_line, = ax.plot([0], '-o', color="red", alpha=0.3, linewidth=0.3, linestyle="-", label="OpenCL")
         self.accleg = ax.legend()
         #self.accticks = ax.xticks(range(0, 10, 2), range(0, 10, 2))
 
@@ -187,7 +199,7 @@ class Index(object):
         axAcc.draw_artist(axAcc.patch)
         axAcc.draw_artist(self.accleg)
 
-        axAcc.set_xlim([0, i])
+        #axAcc.set_xlim([0, i])
         #self.accticks.
         #axAcc.draw_artist(self.accticks)
         axAcc.set_xticks(range(0, i, (i/5)+1), range(0, i, (i/5)+1))
@@ -237,7 +249,7 @@ class Index(object):
             fpga_exectime.append(float(flst[idx][-1])*1000.0)
             ocl_exectime.append(float(olst[idx][-1])*1000.0)
             if idx%100 == 0:
-                if compare_array(y_test[idx], glst[idx][0:9]):
+                if compare_array(y_test[idx], glst[idx][0:10]):
                     #plot_mnist_digit(self.axsGPU[idx/nx/ny], x_test[idx], 'Greens')
                     color_mnist_digit(self.gpu_imgs[idx/nx/ny], self.axsGPU[idx/nx/ny], 'Greens')
                     gpu_correct += 1
@@ -245,7 +257,7 @@ class Index(object):
                     #plot_mnist_digit(self.axsGPU[idx/nx/ny], x_test[idx], 'Reds')
                     color_mnist_digit(self.gpu_imgs[idx/nx/ny], self.axsGPU[idx/nx/ny], 'Reds')
 
-                if compare_array(y_test[idx], flst[idx][0:9]):
+                if compare_array(y_test[idx], flst[idx][0:10]):
                     #plot_mnist_digit(self.axsFPGA[idx/nx/ny], x_test[idx], 'Greens')
                     color_mnist_digit(self.fpga_imgs[idx/nx/ny], self.axsFPGA[idx/nx/ny], 'Greens')
                     fpga_correct += 1
@@ -253,7 +265,7 @@ class Index(object):
                     #plot_mnist_digit(self.axsFPGA[idx/nx/ny], x_test[idx], 'Reds')
                     color_mnist_digit(self.fpga_imgs[idx/nx/ny], self.axsFPGA[idx/nx/ny], 'Reds')
 
-                if compare_array(y_test[idx], olst[idx][0:9]):
+                if compare_array(y_test[idx], olst[idx][0:10]):
                     #plot_mnist_digit(self.axsOCL[idx/nx/ny], x_test[idx], 'Greens')
                     color_mnist_digit(self.ocl_imgs[idx/nx/ny], self.axsOCL[idx/nx/ny], 'Greens')
                     ocl_correct += 1
@@ -279,11 +291,11 @@ class Index(object):
                 refreshPlot(f)
 
             else:
-                if compare_array(y_test[idx], glst[idx][0:9]):
+                if compare_array(y_test[idx], glst[idx][0:10]):
                     gpu_correct += 1
-                if compare_array(y_test[idx], flst[idx][0:9]):
+                if compare_array(y_test[idx], flst[idx][0:10]):
                     fpga_correct += 1
-                if compare_array(y_test[idx], olst[idx][0:9]):
+                if compare_array(y_test[idx], olst[idx][0:10]):
                     ocl_correct += 1
         
         time.sleep(5)
